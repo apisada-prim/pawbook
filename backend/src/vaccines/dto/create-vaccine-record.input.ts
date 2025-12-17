@@ -11,5 +11,8 @@ export class CreateVaccineRecordInput {
     @Field({ nullable: true })
     dateAdministered?: Date;
 
+    @Field({ nullable: true })
+    nextDueDate?: Date;
+
     // Vet ID will be taken from context
 }

@@ -16,6 +16,7 @@ export class VaccinesService {
                 petId: input.petId,
                 vaccineMasterId: input.vaccineMasterId,
                 dateAdministered: input.dateAdministered || new Date(),
+                nextDueDate: input.nextDueDate,
                 vetId,
                 isVerified: true, // Created by vet
             },
@@ -33,6 +34,7 @@ export class VaccinesService {
                 petId: input.petId,
                 vaccineMasterId: input.vaccineMasterId,
                 dateAdministered: input.dateAdministered,
+                nextDueDate: input.nextDueDate,
                 stickerImage: input.stickerImage,
                 isVerified: false,
                 // vetId and clinicId are null

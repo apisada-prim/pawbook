@@ -12,6 +12,7 @@ type Clinic {
 
 input CreateLegacyRecordInput {
   dateAdministered: DateTime!
+  nextDueDate: DateTime
   petId: String!
   stickerImage: String!
   vaccineMasterId: String!
@@ -37,6 +38,7 @@ input CreateUserInput {
 
 input CreateVaccineRecordInput {
   dateAdministered: DateTime
+  nextDueDate: DateTime
   petId: String!
   vaccineMasterId: String!
 }

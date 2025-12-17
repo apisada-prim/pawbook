@@ -11,7 +11,7 @@ import { Nunito } from "next/font/google";
 // Font Configuration
 const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
-import { calculateAge } from "../../../utils/dateUtils";
+import { calculateAge, calculateNextVaccineDate } from "../../../utils/dateUtils";
 
 const GET_PET_QUERY = gql`
   query GetPet($id: String!) {
@@ -100,6 +100,7 @@ export default function PetDetailsPage() {
     // Legacy Upload State
     const [showLegacyForm, setShowLegacyForm] = useState(false);
     const [legacyDate, setLegacyDate] = useState("");
+    const [legacyNextDate, setLegacyNextDate] = useState("");
     const [legacyImage, setLegacyImage] = useState("");
     const [legacyVaccineId, setLegacyVaccineId] = useState("");
 
@@ -135,6 +136,7 @@ export default function PetDetailsPage() {
                         petId: id,
                         vaccineMasterId: legacyVaccineId,
                         dateAdministered: new Date(legacyDate).toISOString(),
+                        nextDueDate: legacyNextDate ? new Date(legacyNextDate).toISOString() : undefined,
                         stickerImage: legacyImage
                     }
                 }
@@ -419,15 +421,43 @@ export default function PetDetailsPage() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Date Administered</label>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Date of Vaccination</label>
                                         <input
                                             type="date"
                                             required
                                             max={new Date().toISOString().split("T")[0]}
                                             className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
                                             value={legacyDate}
-                                            onChange={(e) => setLegacyDate(e.target.value)}
+                                            onChange={(e) => {
+                                                const newDate = e.target.value;
+                                                setLegacyDate(newDate);
+
+                                                // Auto Calculation logic
+                                                if (legacyVaccineId && newDate && pet.birthDate) {
+                                                    const vaccine = vaccineData?.vaccines?.find((v: any) => v.id === legacyVaccineId);
+                                                    if (vaccine) {
+                                                        const birth = new Date(pet.birthDate);
+                                                        const adminDate = new Date(newDate);
+                                                        // Calculate age in weeks roughly
+                                                        const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+
+                                                        const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, newDate, ageInWeeks);
+                                                        setLegacyNextDate(nextDate);
+                                                    }
+                                                }
+                                            }}
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">Next Vaccination (Optional)</label>
+                                        <input
+                                            type="date"
+                                            min={legacyDate}
+                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
+                                            value={legacyNextDate}
+                                            onChange={(e) => setLegacyNextDate(e.target.value)}
+                                        />
+                                        <p className="text-xs text-gray-400 mt-1">Auto-calculated based on vaccine guidelines. You can adjust if needed.</p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">Photo Evidence / Sticker</label>

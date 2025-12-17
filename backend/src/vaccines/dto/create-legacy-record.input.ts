@@ -11,6 +11,9 @@ export class CreateLegacyRecordInput {
     @Field()
     dateAdministered: Date;
 
+    @Field({ nullable: true })
+    nextDueDate?: Date;
+
     @Field()
     stickerImage: string; // URL
 }

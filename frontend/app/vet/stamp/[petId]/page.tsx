@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Cookies from "js-cookie";
 import Link from "next/link";
+import { calculateNextVaccineDate, calculateAge } from "../../../utils/dateUtils";
 
 const GET_DATA_QUERY = gql`
   query GetData($petId: String!) {
@@ -12,6 +13,7 @@ const GET_DATA_QUERY = gql`
       id
       name
       species
+      birthDate
       ownerId
       chronicDiseases
     }
@@ -41,6 +43,7 @@ const STAMP_MUTATION = gql`
     createVaccineRecord(input: $input) {
       id
       dateAdministered
+      nextDueDate
     }
   }
 `;
@@ -54,6 +57,7 @@ export default function VetStampPage() {
     const [selectedVaccineId, setSelectedVaccineId] = useState("");
     // Default to today
     const [dateAdministered] = useState(new Date().toISOString().split('T')[0]);
+    const [nextDueDate, setNextDueDate] = useState("");
 
     const { data, loading, error } = useQuery(GET_DATA_QUERY, {
         variables: { petId },
@@ -87,7 +91,8 @@ export default function VetStampPage() {
                     input: {
                         petId: pet.id,
                         vaccineMasterId: selectedVaccineId,
-                        dateAdministered: new Date(dateAdministered).toISOString()
+                        dateAdministered: new Date(dateAdministered).toISOString(),
+                        nextDueDate: nextDueDate ? new Date(nextDueDate).toISOString() : undefined
                     }
                 }
             });
@@ -168,7 +173,23 @@ export default function VetStampPage() {
                         required
                         className="mt-2 block w-full rounded-md border-0 py-2.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
                         value={selectedVaccineId}
-                        onChange={(e) => setSelectedVaccineId(e.target.value)}
+                        onChange={(e) => {
+                            const newVaccineId = e.target.value;
+                            setSelectedVaccineId(newVaccineId);
+
+                            // Auto calc logic for Vet
+                            if (newVaccineId && dateAdministered && pet.birthDate) {
+                                const vaccine = vaccines.find((v: any) => v.id === newVaccineId);
+                                if (vaccine) {
+                                    const birth = new Date(pet.birthDate);
+                                    const adminDate = new Date(dateAdministered);
+                                    const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+
+                                    const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, dateAdministered, ageInWeeks);
+                                    setNextDueDate(nextDate);
+                                }
+                            }
+                        }}
                     >
                         <option value="">-- Choose Vaccine --</option>
                         {availableVaccines.map((v: any) => (
@@ -180,7 +201,7 @@ export default function VetStampPage() {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium leading-6 text-gray-900">Date Administered</label>
+                    <label className="block text-sm font-medium leading-6 text-gray-900">Date of Vaccination</label>
                     <input
                         type="date"
                         required
@@ -189,6 +210,19 @@ export default function VetStampPage() {
                         value={dateAdministered}
                     />
                     <p className="text-xs text-gray-500 mt-1">Date is automatically set to today for verification integrity.</p>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium leading-6 text-gray-900">Next Vaccination Due Date</label>
+                    <input
+                        type="date"
+                        required
+                        min={dateAdministered}
+                        className="mt-2 block w-full rounded-md border-0 py-2.5 text-gray-900 ring-1 ring-inset ring-gray-300 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
+                        value={nextDueDate}
+                        onChange={(e) => setNextDueDate(e.target.value)}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Auto-calculated based on guidelines. Verify and adjust if necessary.</p>
                 </div>
 
                 {stampError && <p className="text-red-500 text-sm">{stampError.message}</p>}
