@@ -91,12 +91,23 @@ export default function VetStampPage() {
         if (!token) router.push("/auth/login");
     }, [router]);
 
+    // Handle Stale Token / User Not Found
+    useEffect(() => {
+        if (!loading && data && !data.me) {
+            Cookies.remove("token");
+            router.push("/auth/login");
+        }
+    }, [loading, data, router]);
+
     // Handle Loading/Error
     if (loading) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Loading pet data...</div>;
     if (error) return <div className="p-8 text-center text-red-500 min-h-screen bg-gray-50 flex items-center justify-center">Error: {error.message}</div>;
     if (!data?.pet) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Pet not found</div>;
 
     const { pet, vaccines, me } = data;
+
+
+
     const vetName = me?.fullName || "Unknown Vet";
     const clinicName = me?.vetProfile?.clinic?.name || "Independent / Unknown Clinic (Not Linked)";
 
@@ -352,7 +363,7 @@ export default function VetStampPage() {
                                         className="block w-full rounded-xl border-0 py-3 text-gray-900 ring-1 ring-inset ring-gray-200 bg-gray-50 cursor-not-allowed sm:text-sm sm:leading-6 px-4"
                                         value={dateAdministered}
                                     />
-                                    <p className="text-[10px] text-gray-500 mt-1 flex items-center gap-1"><i className="fas fa-lock text-gray-400"></i> Locked to current date for security</p>
+
                                 </div>
 
                                 <div>
@@ -365,7 +376,6 @@ export default function VetStampPage() {
                                         value={nextDueDate}
                                         onChange={(e) => setNextDueDate(e.target.value)}
                                     />
-                                    <p className="text-[10px] text-orange-500 mt-1"><i className="fas fa-magic"></i> Auto-calculated. Please verify.</p>
                                 </div>
                             </div>
 
