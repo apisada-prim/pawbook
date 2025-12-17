@@ -41,9 +41,19 @@ export class Pet {
     @Field(() => String, { nullable: true })
     chronicDiseases?: string;
 
+    @Field(() => User, { nullable: true })
+    owner?: User;
+
+    @Field(() => String, { nullable: true })
+    transferCode?: string;
+
+    @Field(() => Date, { nullable: true })
+    transferExpiresAt?: Date;
+
+    @Field(() => [User], { nullable: 'itemsAndList' })
+    pastOwners?: User[];
+
     @Field(() => [VaccineRecord], { nullable: true })
     vaccinations?: VaccineRecord[];
-
-    @Field(() => [User], { nullable: true })
-    coOwners?: User[];
 }
+

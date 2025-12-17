@@ -230,7 +230,7 @@ export default function EditPetPage() {
                             <input
                                 type="text"
                                 required
-                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none transition-all placeholder:text-gray-300 bg-gray-50/50"
+                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none transition-all placeholder:text-gray-300 bg-gray-50/50"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                             />
@@ -241,7 +241,7 @@ export default function EditPetPage() {
                                 <label className="block text-sm font-bold text-[#4A5568] mb-2">Species</label>
                                 <div className="relative">
                                     <select
-                                        className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
+                                        className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
                                         value={species}
                                         disabled
                                         onChange={(e) => setSpecies(e.target.value)}
@@ -257,7 +257,7 @@ export default function EditPetPage() {
                                 <label className="block text-sm font-bold text-[#4A5568] mb-2">Gender</label>
                                 <div className="relative">
                                     <select
-                                        className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
+                                        className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
                                         value={gender}
                                         onChange={(e) => setGender(e.target.value)}
                                     >
@@ -273,7 +273,7 @@ export default function EditPetPage() {
                             <label className="block text-sm font-bold text-[#4A5568] mb-2">Breed</label>
                             <div className="relative">
                                 <select
-                                    className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
+                                    className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none appearance-none bg-gray-50/50"
                                     value={breed}
                                     onChange={(e) => setBreed(e.target.value)}
                                 >
@@ -292,7 +292,7 @@ export default function EditPetPage() {
                                 type="date"
                                 required
                                 max={new Date().toLocaleDateString('en-CA')}
-                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none transition-all bg-gray-50/50"
+                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none transition-all bg-gray-50/50"
                                 value={birthDate}
                                 onChange={(e) => setBirthDate(e.target.value)}
                             />
@@ -315,7 +315,7 @@ export default function EditPetPage() {
                             <label className="block text-sm font-bold text-[#4A5568] mb-2">Chronic Diseases</label>
                             <input
                                 type="text"
-                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-700 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none placeholder:text-gray-300 bg-gray-50/50"
+                                className="block w-full rounded-[16px] border border-gray-200 py-3 px-4 text-gray-900 focus:border-[#8AD6C6] focus:ring focus:ring-[#8AD6C6]/20 outline-none placeholder:text-gray-300 bg-gray-50/50"
                                 placeholder="e.g. Allergy, Kidney Disease (Optional)"
                                 value={chronicDiseases}
                                 onChange={(e) => setChronicDiseases(e.target.value)}

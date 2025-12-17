@@ -4,6 +4,9 @@ import { useState } from "react";
 import { gql, useMutation } from "@apollo/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Nunito } from "next/font/google";
+
+const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
 const SIGNUP_MUTATION = gql`
   mutation Signup($signupInput: CreateUserInput!) {
@@ -41,48 +44,59 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center p-24 bg-gray-50">
-            <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-xl shadow-lg">
-                <div className="text-center">
-                    <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">
-                        Create an account
+        <div className={`flex min-h-screen flex-col items-center justify-center p-6 bg-[#FFF9F4] ${nunito.className}`}>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+            <div className="w-full max-w-md bg-white p-8 rounded-[32px] shadow-[0_10px_40px_rgba(0,0,0,0.05)] border border-white/50">
+                <div className="text-center mb-10">
+                    <div className="w-20 h-20 bg-[#E6FFFA] rounded-full flex items-center justify-center mx-auto mb-6 text-[#8AD6C6] text-4xl shadow-sm">
+                        <i className="fas fa-heart"></i>
+                    </div>
+                    <h2 className="text-3xl font-extrabold text-[#4A5568] tracking-tight mb-2">
+                        Create Account
                     </h2>
-                    <p className="mt-2 text-sm text-gray-600">
-                        Join the vet-verified network
+                    <p className="text-[#A0AEC0] font-medium">
+                        Join our vet-verified community
                     </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    <div className="-space-y-px rounded-md shadow-sm">
-                        <div>
+
+                <form className="space-y-6" onSubmit={handleSubmit}>
+                    <div className="space-y-5">
+                        <div className="relative group">
+                            <i className="fas fa-user absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#8AD6C6] transition-colors"></i>
                             <input
                                 name="fullName"
                                 type="text"
                                 required
-                                className="relative block w-full rounded-t-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
+                                className="block w-full rounded-[20px] border-none bg-gray-50 py-4 pl-12 pr-4 text-gray-700 font-bold placeholder:text-gray-300 focus:ring-2 focus:ring-[#8AD6C6] focus:bg-white transition-all shadow-inner"
                                 placeholder="Full Name"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
                             />
                         </div>
-                        <div>
+
+                        <div className="relative group">
+                            <i className="fas fa-envelope absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#8AD6C6] transition-colors"></i>
                             <input
                                 name="email"
                                 type="email"
                                 autoComplete="email"
                                 required
-                                className="relative block w-full border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
+                                className="block w-full rounded-[20px] border-none bg-gray-50 py-4 pl-12 pr-4 text-gray-700 font-bold placeholder:text-gray-300 focus:ring-2 focus:ring-[#8AD6C6] focus:bg-white transition-all shadow-inner"
                                 placeholder="Email address"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
                         </div>
-                        <div>
+
+                        <div className="relative group">
+                            <i className="fas fa-lock absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-[#8AD6C6] transition-colors"></i>
                             <input
                                 name="password"
                                 type="password"
                                 autoComplete="new-password"
                                 required
-                                className="relative block w-full rounded-b-md border-0 py-1.5 text-gray-900 ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:z-10 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 px-3"
+                                className="block w-full rounded-[20px] border-none bg-gray-50 py-4 pl-12 pr-4 text-gray-700 font-bold placeholder:text-gray-300 focus:ring-2 focus:ring-[#8AD6C6] focus:bg-white transition-all shadow-inner"
                                 placeholder="Password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
@@ -90,24 +104,37 @@ export default function RegisterPage() {
                         </div>
                     </div>
 
-                    {error && <p className="text-red-500 text-sm text-center">{error.message}</p>}
+                    {error && (
+                        <div className="bg-red-50 text-red-500 text-sm font-bold text-center p-3 rounded-xl flex items-center justify-center gap-2">
+                            <i className="fas fa-exclamation-circle"></i>
+                            {error.message}
+                        </div>
+                    )}
 
-                    <div>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="group relative flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-                        >
-                            {loading ? "Creating account..." : "Sign up"}
-                        </button>
-                    </div>
-                    <div className="text-sm text-center">
-                        <Link href="/auth/login" className="font-semibold text-indigo-600 hover:text-indigo-500">
-                            Already have an account? Sign in
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-[#8AD6C6] text-white py-4 rounded-[20px] text-lg font-bold shadow-[0_8px_20px_rgba(138,214,198,0.4)] hover:bg-[#76BDB0] hover:shadow-[0_12px_24px_rgba(138,214,198,0.5)] transform hover:-translate-y-0.5 transition-all disabled:opacity-70 disabled:cursor-not-allowed group flex justify-center items-center gap-2"
+                    >
+                        {loading ? (
+                            <>
+                                <i className="fas fa-spinner fa-spin"></i> Creating...
+                            </>
+                        ) : (
+                            "Sign Up"
+                        )}
+                    </button>
+
+                    <div className="text-center pt-2">
+                        <Link href="/auth/login" className="text-[#8AD6C6] font-bold hover:text-[#76BDB0] transition-colors text-sm">
+                            Already have an account? <span className="underline decoration-2 underline-offset-4">Sign in</span>
                         </Link>
                     </div>
                 </form>
             </div>
+            <p className="mt-8 text-center text-xs text-gray-300 font-bold">
+                &copy; 2024 PawBook. Vet Verified.
+            </p>
         </div>
     );
 }

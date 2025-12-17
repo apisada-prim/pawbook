@@ -11,6 +11,8 @@ import { Nunito } from "next/font/google";
 // Font Configuration
 const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
+import { calculateAge } from "../../../utils/dateUtils";
+
 const GET_PET_QUERY = gql`
   query GetPet($id: String!) {
     pet: findOne(id: $id) {
@@ -49,21 +51,8 @@ const GET_PET_QUERY = gql`
             name
         }
       }
-      coOwners {
-        id
-        fullName
-        image
-      }
     }
   }
-`;
-
-const ADD_CO_OWNER = gql`
-  mutation AddCoOwner($petId: String!, $email: String!) {
-    addCoOwner(petId: $petId, email: $email) {
-        id
-    }
-}
 `;
 
 const UPLOAD_LEGACY = gql`
@@ -92,17 +81,6 @@ const WHO_AM_I = gql`
 }
 `;
 
-const REMOVE_CO_OWNER = gql`
-  mutation RemoveCoOwner($petId: String!, $userId: String!) {
-    removeCoOwner(petId: $petId, userId: $userId) {
-        id
-        coOwners {
-            id
-        }
-    }
-}
-`;
-
 const DELETE_PET = gql`
   mutation DeletePet($id: String!) {
     removePet(id: $id) {
@@ -117,10 +95,7 @@ export default function PetDetailsPage() {
     const { id } = params;
 
     const [showQR, setShowQR] = useState(false);
-    const [coOwnerEmail, setCoOwnerEmail] = useState("");
-    const [showCoOwnerInput, setShowCoOwnerInput] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const [showFamilyModal, setShowFamilyModal] = useState(false);
 
     // Legacy Upload State
     const [showLegacyForm, setShowLegacyForm] = useState(false);
@@ -140,9 +115,7 @@ export default function PetDetailsPage() {
 
     const { data: vaccineData } = useQuery(GET_VACCINES);
 
-    const [addCoOwner] = useMutation(ADD_CO_OWNER);
     const [uploadLegacy] = useMutation(UPLOAD_LEGACY);
-    const [removeCoOwner] = useMutation(REMOVE_CO_OWNER);
     const [deletePet] = useMutation(DELETE_PET);
 
     const { data: meData } = useQuery(WHO_AM_I);
@@ -152,17 +125,6 @@ export default function PetDetailsPage() {
         const token = Cookies.get("token");
         if (!token) router.push("/auth/login");
     }, [router]);
-
-    const handleAddCoOwner = async () => {
-        try {
-            await addCoOwner({ variables: { petId: id, email: coOwnerEmail } });
-            alert("Co-owner added successfully!");
-            setCoOwnerEmail("");
-            setShowCoOwnerInput(false);
-        } catch (e: any) {
-            alert("Error adding co-owner: " + e.message);
-        }
-    };
 
     const handleLegacyUpload = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -192,26 +154,6 @@ export default function PetDetailsPage() {
     const { pet } = data;
     const isOwner = me?.id === pet?.ownerId;
 
-    const handleRemoveCoOwner = async (coOwnerId: string) => {
-        if (!confirm("Remove this person from the family?")) return;
-        try {
-            await removeCoOwner({ variables: { petId: id, userId: coOwnerId } });
-            refetch();
-        } catch (e: any) {
-            alert("Error removing co-owner: " + e.message);
-        }
-    };
-
-    const handleLeaveFamily = async () => {
-        if (!confirm("Are you sure you want to leave this family?")) return;
-        try {
-            await removeCoOwner({ variables: { petId: id, userId: me.id } });
-            router.push("/owner/dashboard");
-        } catch (e: any) {
-            alert("Error leaving family: " + e.message);
-        }
-    };
-
     const handleDeletePet = async () => {
         if (!confirm("Are you sure? This will delete the pet for EVERYONE.")) return;
         try {
@@ -229,16 +171,6 @@ export default function PetDetailsPage() {
         if (filterType === "ALL") return true;
         return record.vaccine.type === filterType;
     });
-
-    // Custom Theme Colors
-    const theme = {
-        primary: "#8AD6C6",
-        primaryDark: "#76BDB0",
-        secondary: "#F6A6A6",
-        textDark: "#4A5568",
-        success: "#68D391",
-        bg: "#FFF9F4"
-    };
 
     return (
         <div className={`min-h-screen bg-[#FFF9F4] ${nunito.className}`}>
@@ -259,8 +191,6 @@ export default function PetDetailsPage() {
                         <i className="fas fa-qrcode"></i> {showQR ? "Hide" : "Show QR"}
                     </button>
                 </header>
-
-
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6 px-5 pb-5 pt-0 md:p-5 items-start">
                     {/* Hero Section (Left on Desktop) */}
@@ -295,9 +225,6 @@ export default function PetDetailsPage() {
                                                     <i className="fas fa-edit mr-1"></i> Edit
                                                 </Link>
                                             )}
-                                            <button onClick={() => setShowFamilyModal(true)} className="text-white/80 hover:text-white text-xs bg-white/20 px-3 py-1 rounded-full transition-colors whitespace-nowrap w-full text-center">
-                                                <i className="fas fa-users mr-1"></i> Family
-                                            </button>
                                         </div>
                                     )}
                                 </div >
@@ -314,7 +241,7 @@ export default function PetDetailsPage() {
                                             <i className="fas fa-mars w-4"></i> {pet.gender} • {pet.isSterilized ? "Sterilized" : "Not Sterilized"}
                                         </div>
                                         <div className="flex items-center gap-2 text-sm mb-1 opacity-90 ml-2">
-                                            <i className="fas fa-birthday-cake w-4"></i> {new Date(pet.birthDate).toLocaleDateString()}
+                                            <i className="fas fa-birthday-cake w-4"></i> {new Date(pet.birthDate).toLocaleDateString()} ({calculateAge(pet.birthDate)})
                                         </div>
                                     </div>
 
@@ -470,7 +397,7 @@ export default function PetDetailsPage() {
                                         <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Type</label>
                                         <select
                                             required
-                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none"
+                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
                                             value={legacyVaccineId}
                                             onChange={(e) => setLegacyVaccineId(e.target.value)}
                                         >
@@ -486,7 +413,7 @@ export default function PetDetailsPage() {
                                             type="date"
                                             required
                                             max={new Date().toISOString().split("T")[0]}
-                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none"
+                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
                                             value={legacyDate}
                                             onChange={(e) => setLegacyDate(e.target.value)}
                                         />
@@ -599,96 +526,7 @@ export default function PetDetailsPage() {
                     )
                 }
 
-                {/* Family Sharing Modal */}
-                {
-                    showFamilyModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setShowFamilyModal(false)}>
-                            <div className="bg-white w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl animate-pop-in" onClick={e => e.stopPropagation()}>
-                                <div className="bg-[#8AD6C6] p-4 text-white flex justify-between items-center">
-                                    <span className="font-bold text-lg"><i className="fas fa-users mr-2"></i> Family Sharing</span>
-                                    <button onClick={() => setShowFamilyModal(false)} className="text-white/80 hover:text-white">✕</button>
-                                </div>
-                                <div className="p-6">
-                                    {isOwner ? (
-                                        <>
-                                            <div className="mb-6">
-                                                <h4 className="text-sm font-bold text-[#4A5568] mb-2">Invite Co-owner</h4>
-                                                <div className="flex gap-2">
-                                                    <input
-                                                        className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#8AD6C6]"
-                                                        placeholder="Enter email address..."
-                                                        value={coOwnerEmail}
-                                                        onChange={(e) => setCoOwnerEmail(e.target.value)}
-                                                    />
-                                                    <button
-                                                        onClick={handleAddCoOwner}
-                                                        className="bg-[#8AD6C6] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#76BDB0] transition-colors"
-                                                    >
-                                                        Invite
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <h4 className="text-sm font-bold text-[#4A5568] mb-3">Family Members</h4>
-                                                {pet.coOwners && pet.coOwners.length > 0 ? (
-                                                    <div className="space-y-3">
-                                                        {pet.coOwners.map((coOwner: any) => (
-                                                            <div key={coOwner.id} className="flex justify-between items-center bg-gray-50 p-2 rounded-xl">
-                                                                <div className="flex items-center gap-3">
-                                                                    <img
-                                                                        src={coOwner.image || `https://ui-avatars.com/api/?name=${coOwner.fullName}&background=random`}
-                                                                        alt={coOwner.fullName}
-                                                                        className="w-10 h-10 rounded-full object-cover border border-white shadow-sm"
-                                                                    />
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-sm font-bold text-gray-700">{coOwner.fullName}</span>
-                                                                        <span className="text-[10px] text-gray-400">Co-owner</span>
-                                                                    </div>
-                                                                </div>
-                                                                <button
-                                                                    onClick={() => handleRemoveCoOwner(coOwner.id)}
-                                                                    className="text-red-400 hover:text-red-600 bg-white p-2 rounded-lg shadow-sm hover:shadow-md transition-all"
-                                                                    title="Remove"
-                                                                >
-                                                                    <i className="fas fa-trash-alt"></i>
-                                                                </button>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-center py-6 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                                                        <i className="fas fa-user-friends text-2xl mb-2 opacity-50"></i>
-                                                        <br />
-                                                        <span className="text-xs">No family members yet</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="text-center py-4">
-                                            <div className="w-16 h-16 bg-[#E6FFFA] rounded-full flex items-center justify-center mx-auto mb-4 text-[#8AD6C6]">
-                                                <i className="fas fa-home text-2xl"></i>
-                                            </div>
-                                            <h3 className="text-lg font-bold text-[#4A5568] mb-2">My Family</h3>
-                                            <p className="text-gray-500 text-sm mb-6">You are a member of this pet's family. You can view details but cannot edit them.</p>
-
-                                            <button
-                                                onClick={handleLeaveFamily}
-                                                className="w-full bg-red-50 text-red-500 border border-red-100 py-3 rounded-xl font-bold text-sm hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-                                            >
-                                                <i className="fas fa-sign-out-alt"></i> Leave Family
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-
             </div>
         </div>
     );
 }
-

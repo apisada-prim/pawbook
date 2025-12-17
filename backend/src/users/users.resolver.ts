@@ -27,7 +27,7 @@ export class UsersResolver {
         return this.usersService.findOne(email);
     }
 
-    @Query(() => User)
+    @Query(() => User, { nullable: true })
     @UseGuards(GqlAuthGuard)
     whoAmI(@CurrentUser() user: User) {
         return this.usersService.findById(user.id);

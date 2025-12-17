@@ -37,4 +37,7 @@ export class User {
 
     @Field({ nullable: true })
     phoneNumber?: string;
+
+    @Field({ nullable: true })
+    defaultFamilyId?: string;
 }

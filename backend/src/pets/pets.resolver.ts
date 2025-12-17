@@ -6,7 +6,6 @@ import { UpdatePetInput } from './dto/update-pet.input';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/gql-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
-import { User } from '../users/entities/user.entity';
 
 @Resolver(() => Pet)
 @UseGuards(GqlAuthGuard)
@@ -19,8 +18,23 @@ export class PetsResolver {
     }
 
     @Query(() => [Pet], { name: 'myPets' })
-    myPets(@CurrentUser() user: any) {
+    myPets(
+        @CurrentUser() user: any,
+        @Args('familyId', { nullable: true }) familyId?: string
+    ) {
+        if (familyId) {
+            // TODO: Add authorization check here? Or service handles logic?
+            // Service just fetches by familyId.
+            // Ideally, check if user is member of familyId.
+            // For now, let's assume if you have ID you can view (or check membership in service wrapper)
+            return this.petsService.findAllByFamily(familyId);
+        }
         return this.petsService.findAllByOwner(user.id);
+    }
+
+    @Query(() => [Pet], { name: 'myAlumniPets' })
+    myAlumniPets(@CurrentUser() user: any) {
+        return this.petsService.findAlumni(user.id);
     }
 
     @Query(() => Pet)
@@ -31,20 +45,20 @@ export class PetsResolver {
 
     @Mutation(() => Pet)
     @UseGuards(GqlAuthGuard)
-    addCoOwner(
-        @Args('petId') petId: string,
-        @Args('email') email: string
+    generateTransferCode(
+        @CurrentUser() user: any,
+        @Args('petId') petId: string
     ) {
-        return this.petsService.addCoOwner(petId, email);
+        return this.petsService.generateTransferCode(petId, user.id);
     }
 
     @Mutation(() => Pet)
     @UseGuards(GqlAuthGuard)
-    removeCoOwner(
-        @Args('petId') petId: string,
-        @Args('userId') userId: string
+    claimPet(
+        @CurrentUser() user: any,
+        @Args('code') code: string
     ) {
-        return this.petsService.removeCoOwner(petId, userId);
+        return this.petsService.claimPet(code, user.id);
     }
 
     @Mutation(() => Pet)

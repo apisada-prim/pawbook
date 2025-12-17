@@ -1,8 +1,117 @@
-import { PrismaClient, Species } from '@prisma/client';
+import { PrismaClient, Species, UserRole } from '@prisma/client';
+import * as dotenv from 'dotenv';
+import * as bcrypt from 'bcrypt';
+
+dotenv.config();
 
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('Seeding initial users...');
+
+  const hashedPassword = await bcrypt.hash('password123', 10);
+
+  const users = [
+    {
+      email: 'owner@pawbook.com',
+      password: hashedPassword,
+      fullName: 'Default Owner',
+      role: UserRole.OWNER,
+      image: 'https://ui-avatars.com/api/?name=Default+Owner&background=random',
+      address: '123 Pet Street',
+      phoneNumber: '0812345678',
+    },
+    {
+      email: 'vet@pawbook.com',
+      password: hashedPassword,
+      fullName: 'Dr. Default Vet',
+      role: UserRole.VET,
+      image: 'https://ui-avatars.com/api/?name=Dr+Vet&background=random',
+      address: '456 Vet Avenue',
+      phoneNumber: '0898765432',
+    },
+    {
+      email: 'admin@pawbook.com',
+      password: hashedPassword,
+      fullName: 'System Admin',
+      role: UserRole.ADMIN,
+      image: 'https://ui-avatars.com/api/?name=Admin&background=random',
+      address: '777 Admin Tower',
+      phoneNumber: '021234567',
+    },
+  ];
+
+  for (const u of users) {
+    const user = await prisma.user.upsert({
+      where: { email: u.email },
+      update: {},
+      create: u,
+    });
+    console.log(`Created user: ${user.email} (${user.role})`);
+
+    // For vets, create a clinic and profile if not exists
+    if (u.role === UserRole.VET) {
+      // Simple clinic check - assuming one default clinic for seed
+      // Clinic doesn't have unique name, but let's assume if this vet is admin... wait, vet is not admin of clinic in this schema usually? 
+      // Schema says clinic has adminId @unique.
+      // Let's just findFirst or create for the clinic to avoid complexity, or skip clinic upsert if too complex for now.
+      // Simplified: Just create clinic if we don't find one with this name? Name isn't unique.
+      // Let's rely on finding a clinic by ID or just create one if we know it's fresh.
+      // For now, let's just Try/Catch the clinic creation or check if user has a profile.
+      // Logic is tricky without unique field for clinic name.
+      // Let's use findFirst instead.
+      // Rethinking: User -> VetProfile (unique userId).
+      // Let's just upsert VetProfile.
+
+      let clinicId: string | null = null;
+      // Check if we have a default clinic
+      const existingClinic = await prisma.clinic.findFirst({ where: { name: 'Pawbook Default Clinic' } });
+      if (existingClinic) {
+        clinicId = existingClinic.id;
+      } else {
+        const newClinic = await prisma.clinic.create({
+          data: {
+            name: 'Pawbook Default Clinic',
+            address: '456 Vet Avenue',
+            phoneNumber: '029998888',
+            isVerified: true
+          }
+        });
+        clinicId = newClinic.id;
+      }
+
+      await prisma.vetProfile.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: {
+          userId: user.id,
+          licenseNumber: 'VET-12345',
+          isVerified: true,
+          clinicId: clinicId
+        }
+      });
+    }
+
+    // For owners, ensure they have a default family
+    if (u.role === UserRole.OWNER) {
+      // Family is likely created via signals/logic in app, but let's ensure it here for seed
+      // Actually, the seed might not trigger app logic. Let's manually create family.
+      const family = await prisma.family.upsert({
+        where: { ownerId: user.id },
+        update: {},
+        create: {
+          name: `${u.fullName}'s Family`,
+          ownerId: user.id,
+          members: { connect: { id: user.id } }
+        }
+      });
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { defaultFamilyId: family.id }
+      });
+    }
+  }
+
   console.log('Seeding vaccine data...');
 
   const vaccines = [
@@ -181,27 +290,27 @@ async function main() {
       // Since we don't have a unique constraint on name+species in schema, we'll just createMany or findFirst.
       // Better approach for seed:
       create: v,
-      update: {}, 
-    // Wait, upsert requires a unique where input. id is unique.
-    // Let's rely on name+brand+species uniqueness conceptually but we didn't enforce it in DB.
-    // For simplicity in this seed, let's delete all and re-insert or just check first.
+      update: {},
+      // Wait, upsert requires a unique where input. id is unique.
+      // Let's rely on name+brand+species uniqueness conceptually but we didn't enforce it in DB.
+      // For simplicity in this seed, let's delete all and re-insert or just check first.
     });
   }
-  
+
   // Refactored to proper loop
   console.log(`Start seeding ...`);
   for (const v of vaccines) {
     const exists = await prisma.vaccineMaster.findFirst({
-        where: {
-            name: v.name,
-            species: v.species
-        }
+      where: {
+        name: v.name,
+        species: v.species
+      }
     })
-    
+
     if (!exists) {
-        await prisma.vaccineMaster.create({
-            data: v
-        })
+      await prisma.vaccineMaster.create({
+        data: v
+      })
     }
   }
 

@@ -11,6 +11,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { VaccinesModule } from './vaccines/vaccines.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { UploadsModule } from './uploads/uploads.module';
+import { FamilyModule } from './family/family.module';
 
 @Module({
   imports: [
@@ -29,7 +30,10 @@ import { UploadsModule } from './uploads/uploads.module';
     AuthModule,
     PrismaModule,
     VaccinesModule,
-    UploadsModule
+    VaccinesModule,
+    UploadsModule,
+    FamilyModule
+
   ],
   controllers: [AppController],
   providers: [AppService],

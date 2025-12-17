@@ -11,4 +11,7 @@ export class UpdateUserInput extends PartialType(CreateUserInput) {
 
     @Field({ nullable: true })
     phoneNumber?: string;
+
+    @Field({ nullable: true })
+    defaultFamilyId?: string;
 }

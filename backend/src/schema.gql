@@ -46,6 +46,16 @@ A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date
 """
 scalar DateTime
 
+type Family {
+  createdAt: DateTime!
+  id: ID!
+  members: [User]
+  name: String!
+  owner: User
+  ownerId: String!
+  updatedAt: DateTime!
+}
+
 enum Gender {
   FEMALE
   MALE
@@ -62,15 +72,20 @@ type LoginResponse {
 }
 
 type Mutation {
-  addCoOwner(email: String!, petId: String!): Pet!
+  claimPet(code: String!): Pet!
+  createFamily(name: String): Family!
   createLegacyRecord(input: CreateLegacyRecordInput!): VaccineRecord!
   createPet(createPetInput: CreatePetInput!): Pet!
   createUser(createUserInput: CreateUserInput!): User!
   createVaccineRecord(input: CreateVaccineRecordInput!): VaccineRecord!
+  generateTransferCode(petId: String!): Pet!
+  inviteMember(email: String!): Family!
+  leaveFamily(familyId: String!): Family!
   login(loginInput: LoginInput!): LoginResponse!
-  removeCoOwner(petId: String!, userId: String!): Pet!
+  removeMember(memberId: String!): Family!
   removePet(id: String!): Pet!
   signup(signupInput: CreateUserInput!): User!
+  updateFamilyName(name: String!): Family!
   updatePet(updatePetInput: UpdatePetInput!): Pet!
   updateUser(updateUserInput: UpdateUserInput!): User!
 }
@@ -79,25 +94,31 @@ type Pet {
   birthDate: DateTime!
   breed: String
   chronicDiseases: String
-  coOwners: [User!]
   gender: Gender!
   id: ID!
   image: String
   isSterilized: Boolean!
   microchipNo: String
   name: String!
+  owner: User
   ownerId: String!
+  pastOwners: [User]
   species: Species!
+  transferCode: String
+  transferExpiresAt: DateTime
   vaccinations: [VaccineRecord!]
 }
 
 type Query {
   findOne(id: String!): Pet!
-  myPets: [Pet!]!
+  myAlumniPets: [Pet!]!
+  myFamilies: [Family!]!
+  myFamily: Family
+  myPets(familyId: String): [Pet!]!
   user(email: String!): User!
   users: [User!]!
   vaccines: [VaccineMaster!]!
-  whoAmI: User!
+  whoAmI: User
 }
 
 enum Species {
@@ -120,6 +141,7 @@ input UpdatePetInput {
 
 input UpdateUserInput {
   address: String
+  defaultFamilyId: String
   email: String
   fullName: String
   image: String
@@ -130,6 +152,7 @@ input UpdateUserInput {
 type User {
   address: String
   createdAt: DateTime!
+  defaultFamilyId: String
   email: String!
   fullName: String!
   id: ID!

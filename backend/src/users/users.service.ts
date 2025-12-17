@@ -9,11 +9,34 @@ export class UsersService {
 
     async create(createUserInput: CreateUserInput) {
         const hashedPassword = await bcrypt.hash(createUserInput.password || 'default', 10);
-        return this.prisma.user.create({
-            data: {
-                ...createUserInput,
-                password: hashedPassword,
-            },
+
+        return this.prisma.$transaction(async (tx) => {
+            // 1. Create the User
+            const user = await tx.user.create({
+                data: {
+                    ...createUserInput,
+                    password: hashedPassword,
+                },
+            });
+
+            // 2. Create the Default Family "My Pets"
+            const family = await tx.family.create({
+                data: {
+                    name: 'My Pets',
+                    ownerId: user.id,
+                    members: {
+                        connect: { id: user.id }, // Owner is also a member
+                    },
+                },
+            });
+
+            // 3. Set the defaultFamilyId on the User
+            return tx.user.update({
+                where: { id: user.id },
+                data: {
+                    defaultFamilyId: family.id,
+                },
+            });
         });
     }
 

@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { CreatePetInput } from './dto/create-pet.input';
 import { PrismaService } from '../prisma/prisma.service';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class PetsService {
@@ -15,14 +16,34 @@ export class PetsService {
         });
     }
 
-    findAllByOwner(ownerId: string) {
+    // findAllByOwner is now wrapper/legacy, we prefer findAllByFamily
+    async findAllByOwner(ownerId: string) {
+        // Default behavior: Find pets of the family owned by this user
+        const family = await this.prisma.family.findUnique({ where: { ownerId } });
+        if (!family) {
+            // Fallback: just return pets directly owned (if no family created yet, though unlikely with new logic)
+            return this.prisma.pet.findMany({ where: { ownerId } });
+        }
+        return this.prisma.pet.findMany({ where: { ownerId: family.ownerId } });
+    }
+
+    async findAllByFamily(familyId: string) {
+        const family = await this.prisma.family.findUnique({ where: { id: familyId } });
+        if (!family) throw new NotFoundException('Family not found');
+        return this.prisma.pet.findMany({ where: { ownerId: family.ownerId } });
+    }
+
+    async findAllByFamilyOwner(familyOwnerId: string) {
+        return this.prisma.pet.findMany({ where: { ownerId: familyOwnerId } });
+    }
+
+    async findAlumni(userId: string) {
         return this.prisma.pet.findMany({
             where: {
-                OR: [
-                    { ownerId },
-                    { coOwners: { some: { id: ownerId } } }
-                ]
-            },
+                pastOwners: {
+                    some: { id: userId }
+                }
+            }
         });
     }
 
@@ -30,7 +51,7 @@ export class PetsService {
         return this.prisma.pet.findUnique({
             where: { id },
             include: {
-                coOwners: true, // Include co-owners
+                pastOwners: true,
                 vaccinations: {
                     include: {
                         vaccine: true,
@@ -50,15 +71,47 @@ export class PetsService {
         });
     }
 
-    async addCoOwner(petId: string, email: string) {
-        const user = await this.prisma.user.findUnique({ where: { email } });
-        if (!user) throw new Error('User not found');
+    async generateTransferCode(petId: string, userId: string) {
+        const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
+        if (!pet) throw new NotFoundException('Pet not found');
+        if (pet.ownerId !== userId) throw new ForbiddenException('You do not own this pet');
+
+        const code = randomBytes(4).toString('hex').toUpperCase(); // 8 chars
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24); // 24h expiry
 
         return this.prisma.pet.update({
             where: { id: petId },
             data: {
-                coOwners: {
-                    connect: { id: user.id }
+                transferCode: code,
+                transferExpiresAt: expiresAt
+            }
+        });
+    }
+
+    async claimPet(code: string, newOwnerId: string) {
+        const pet = await this.prisma.pet.findFirst({
+            where: {
+                transferCode: code,
+                transferExpiresAt: { gt: new Date() }
+            },
+            include: { owner: true } // Previous owner
+        });
+
+        if (!pet) throw new BadRequestException('Invalid or expired transfer code');
+        if (pet.ownerId === newOwnerId) throw new BadRequestException('You already own this pet');
+
+        const oldOwnerId = pet.ownerId;
+
+        // Transaction: Update owner, Add to pastOwners, Clear code
+        return this.prisma.pet.update({
+            where: { id: pet.id },
+            data: {
+                ownerId: newOwnerId,
+                transferCode: null,
+                transferExpiresAt: null,
+                pastOwners: {
+                    connect: { id: oldOwnerId }
                 }
             }
         });
@@ -75,17 +128,6 @@ export class PetsService {
     remove(id: string) {
         return this.prisma.pet.delete({
             where: { id }
-        });
-    }
-
-    async removeCoOwner(petId: string, userId: string) {
-        return this.prisma.pet.update({
-            where: { id: petId },
-            data: {
-                coOwners: {
-                    disconnect: { id: userId }
-                }
-            }
         });
     }
 }
