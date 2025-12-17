@@ -1,0 +1,41 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: pawbook-backend
+    ports:
+      - "4000:3000"
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/pawbook
+      - PORT=3000
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    depends_on:
+      - db
+    networks:
+      - pawbook-network
+
+
+
+  db:
+    image: postgres:15-alpine
+    container_name: pawbook-db
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=pawbook
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - pawbook-network
+
+networks:
+  pawbook-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

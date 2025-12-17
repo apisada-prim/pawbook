@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  VET
+  ADMIN
+}
+
+enum Species {
+  DOG
+  CAT
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  fullName  String
+  role      UserRole @default(OWNER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Profile Fields
+  image       String?
+  address     String?
+  phoneNumber String?
+
+  // Relations
+  pets        Pet[]
+  coOwnedPets Pet[]       @relation("CoOwnership")
+  vetProfile  VetProfile?
+  clinic      Clinic?     @relation("ClinicAdmin") // If Admin manages a clinic
+  auditLogs   AuditLog[]
+}
+
+model VetProfile {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+  licenseNumber String   @unique
+  isVerified    Boolean  @default(false)
+  clinicId      String?
+  clinic        Clinic?  @relation(fields: [clinicId], references: [id])
+  
+  // Relations
+  stamps        VaccineRecord[]
+}
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  phoneNumber String?
+  isVerified  Boolean  @default(false)
+  
+  // Relations
+  vets        VetProfile[]
+  adminId     String?      @unique
+  admin       User?        @relation("ClinicAdmin", fields: [adminId], references: [id])
+  stamps      VaccineRecord[]
+}
+
+model Pet {
+  id            String    @id @default(uuid())
+  ownerId       String
+  owner         User      @relation(fields: [ownerId], references: [id])
+  name          String
+  species       Species
+  breed         String?
+  birthDate     DateTime
+  gender        Gender
+  microchipNo   String?
+  image         String?   // URL to pet photo
+  isSterilized  Boolean   @default(false)
+  chronicDiseases String? // Comma-separated or simple text
+  
+  // Relations
+  coOwners      User[]    @relation("CoOwnership")
+  vaccinations  VaccineRecord[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VaccineMaster {
+  id          String   @id @default(uuid())
+  name        String   // e.g. "Defensor 3"
+  brand       String   // e.g. "Zoetis"
+  type        String   // e.g. "Rabies"
+  species     Species
+  isCore      Boolean  @default(false)
+  description String?
+  
+  // Relations
+  records     VaccineRecord[]
+}
+
+model VaccineRecord {
+  id              String   @id @default(uuid())
+  petId           String
+  pet             Pet      @relation(fields: [petId], references: [id])
+  
+  vetId           String?  // Nullable for "Legacy/Unverified" uploads
+  vet             VetProfile? @relation(fields: [vetId], references: [id])
+  
+  clinicId        String?
+  clinic          Clinic?  @relation(fields: [clinicId], references: [id])
+  
+  vaccineMasterId String
+  vaccine         VaccineMaster @relation(fields: [vaccineMasterId], references: [id])
+  
+  dateAdministered DateTime @default(now())
+  nextDueDate      DateTime?
+  
+  stickerImage     String?  // Evidence
+  lotNumber        String?
+  expiryDate       DateTime?
+  
+  isVerified       Boolean  @default(true) // False for user uploads, True for Vet stamps
+  notes            String?
+  
+  createdAt        DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+}

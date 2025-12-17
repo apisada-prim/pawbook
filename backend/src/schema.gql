@@ -1,0 +1,183 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Clinic {
+  address: String!
+  id: ID!
+  isVerified: Boolean!
+  name: String!
+  phoneNumber: String
+}
+
+input CreateLegacyRecordInput {
+  dateAdministered: DateTime!
+  petId: String!
+  stickerImage: String!
+  vaccineMasterId: String!
+}
+
+input CreatePetInput {
+  birthDate: DateTime!
+  breed: String
+  chronicDiseases: String
+  gender: Gender!
+  image: String
+  isSterilized: Boolean = false
+  microchipNo: String
+  name: String!
+  species: Species!
+}
+
+input CreateUserInput {
+  email: String!
+  fullName: String!
+  password: String!
+}
+
+input CreateVaccineRecordInput {
+  dateAdministered: DateTime
+  petId: String!
+  vaccineMasterId: String!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+enum Gender {
+  FEMALE
+  MALE
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type LoginResponse {
+  access_token: String!
+  user: User!
+}
+
+type Mutation {
+  addCoOwner(email: String!, petId: String!): Pet!
+  createLegacyRecord(input: CreateLegacyRecordInput!): VaccineRecord!
+  createPet(createPetInput: CreatePetInput!): Pet!
+  createUser(createUserInput: CreateUserInput!): User!
+  createVaccineRecord(input: CreateVaccineRecordInput!): VaccineRecord!
+  login(loginInput: LoginInput!): LoginResponse!
+  removeCoOwner(petId: String!, userId: String!): Pet!
+  removePet(id: String!): Pet!
+  signup(signupInput: CreateUserInput!): User!
+  updatePet(updatePetInput: UpdatePetInput!): Pet!
+  updateUser(updateUserInput: UpdateUserInput!): User!
+}
+
+type Pet {
+  birthDate: DateTime!
+  breed: String
+  chronicDiseases: String
+  coOwners: [User!]
+  gender: Gender!
+  id: ID!
+  image: String
+  isSterilized: Boolean!
+  microchipNo: String
+  name: String!
+  ownerId: String!
+  species: Species!
+  vaccinations: [VaccineRecord!]
+}
+
+type Query {
+  findOne(id: String!): Pet!
+  myPets: [Pet!]!
+  user(email: String!): User!
+  users: [User!]!
+  vaccines: [VaccineMaster!]!
+  whoAmI: User!
+}
+
+enum Species {
+  CAT
+  DOG
+}
+
+input UpdatePetInput {
+  birthDate: DateTime
+  breed: String
+  chronicDiseases: String
+  gender: Gender
+  id: String!
+  image: String
+  isSterilized: Boolean = false
+  microchipNo: String
+  name: String
+  species: Species
+}
+
+input UpdateUserInput {
+  address: String
+  email: String
+  fullName: String
+  image: String
+  password: String
+  phoneNumber: String
+}
+
+type User {
+  address: String
+  createdAt: DateTime!
+  email: String!
+  fullName: String!
+  id: ID!
+  image: String
+  phoneNumber: String
+  role: UserRole!
+  updatedAt: DateTime!
+  vetProfile: VetProfile
+}
+
+enum UserRole {
+  ADMIN
+  OWNER
+  VET
+}
+
+type VaccineMaster {
+  brand: String!
+  description: String
+  id: ID!
+  isCore: Boolean!
+  name: String!
+  species: Species!
+  type: String!
+}
+
+type VaccineRecord {
+  clinic: Clinic
+  clinicId: String
+  dateAdministered: DateTime!
+  id: ID!
+  isVerified: Boolean!
+  nextDueDate: DateTime
+  pet: Pet!
+  petId: String!
+  stickerImage: String
+  vaccine: VaccineMaster!
+  vaccineMasterId: String!
+  vet: VetProfile
+  vetId: String
+}
+
+type VetProfile {
+  clinic: Clinic
+  clinicId: String
+  id: ID!
+  isVerified: Boolean!
+  licenseNumber: String!
+  user: User!
+  userId: String!
+}

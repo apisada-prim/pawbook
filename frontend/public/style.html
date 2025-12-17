@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pet Vaccine Record - Mamon</title>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* --- 🎨 ตั้งค่าสีและธีม (แก้ไขตรงนี้ได้เลย) --- */
+        :root {
+            --bg-color: #FFF9F4;
+            /* สีพื้นหลังครีมอุ่นๆ */
+            --primary: #8AD6C6;
+            /* สีเขียวมิ้นต์หลัก */
+            --primary-dark: #76BDB0;
+            /* สีเขียวที่เข้มขึ้นนิดนึง */
+            --secondary: #F6A6A6;
+            /* สีชมพูพาสเทล */
+            --text-dark: #4A5568;
+            /* สีตัวหนังสือเทาเข้ม */
+            --text-light: #FFFFFF;
+            /* สีตัวหนังสือขาว */
+            --gray-light: #E2E8F0;
+            /* สีเทาจางๆ */
+            --success: #68D391;
+            /* สีเขียว Verify */
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Nunito', sans-serif;
+            /* ฟอนต์นุ่มนิ่ม */
+        }
+
+        body {
+            background-color: #F0F2F5;
+            /* พื้นหลังข้างนอกสุด */
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* จำลองหน้าจอมือถือ */
+        .mobile-container {
+            width: 100%;
+            max-width: 480px;
+            /* ขนาดมือถือ */
+            background-color: var(--bg-color);
+            min-height: 100vh;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+            position: relative;
+            padding-bottom: 80px;
+            /* เผื่อที่ให้ปุ่มด้านล่าง */
+        }
+
+        /* --- Header --- */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            background: white;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 18px;
+            color: var(--text-dark);
+            font-weight: 700;
+        }
+
+        .btn-icon {
+            border: none;
+            background: none;
+            font-size: 18px;
+            color: var(--text-dark);
+            cursor: pointer;
+        }
+
+        .btn-qr {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            box-shadow: 0 4px 10px rgba(138, 214, 198, 0.4);
+            cursor: pointer;
+        }
+
+        /* --- Pet Hero Card (การ์ดเขียวด้านบน) --- */
+        .hero-section {
+            padding: 20px;
+        }
+
+        .pet-card {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            border-radius: 24px;
+            padding: 24px;
+            color: white;
+            box-shadow: 0 10px 20px rgba(138, 214, 198, 0.5);
+        }
+
+        .pet-info {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .pet-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 255, 255, 0.5);
+            object-fit: cover;
+        }
+
+        .pet-details h2 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .info-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            margin-bottom: 4px;
+            opacity: 0.9;
+        }
+
+        /* Family Sharing Box inside card */
+        .family-sharing {
+            background: rgba(255, 255, 255, 0.2);
+            /* กระจกใส */
+            backdrop-filter: blur(5px);
+            border-radius: 16px;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .family-left {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .family-title {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .avatars {
+            display: flex;
+            align-items: center;
+        }
+
+        .avatar-small {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            margin-right: -8px;
+            /* ซ้อนกัน */
+            background: white;
+        }
+
+        .family-count {
+            font-size: 12px;
+            margin-left: 12px;
+        }
+
+        .btn-manage {
+            background: rgba(255, 255, 255, 0.3);
+            border: none;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            cursor: pointer;
+        }
+
+        /* --- Vaccine History Section --- */
+        .history-section {
+            padding: 0 20px 20px 20px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--text-dark);
+        }
+
+        .badge-count {
+            background: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: var(--text-dark);
+            font-weight: 700;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Vaccine Cards */
+        .vaccine-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .vaccine-card {
+            background: white;
+            border-radius: 20px;
+            padding: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+            position: relative;
+            transition: transform 0.2s;
+        }
+
+        .vaccine-card:active {
+            transform: scale(0.98);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .vaccine-name {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--text-dark);
+            margin-bottom: 4px;
+        }
+
+        .vaccine-date {
+            font-size: 13px;
+            color: #999;
+        }
+
+        .verify-badge {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--primary);
+            /* สีเขียวมิ้นต์ */
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .pending-badge {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #F6AD55;
+            /* สีส้ม */
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .card-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .tags {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tag {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .tag-pink {
+            background-color: var(--secondary);
+            color: white;
+        }
+
+        .tag-green {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .tag-gray {
+            background-color: var(--gray-light);
+            color: #777;
+        }
+
+        .arrow-icon {
+            color: #CCC;
+        }
+
+        /* --- Footer Button --- */
+        .footer-action {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 440px;
+            /* เล็กกว่า container นิดนึง */
+            padding: 0 20px;
+        }
+
+        .btn-upload {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 8px 20px rgba(138, 214, 198, 0.4);
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="mobile-container">
+        <header>
+            <button class="btn-icon"><i class="fas fa-arrow-left"></i></button>
+            <h1>Pet Health Record</h1>
+            <button class="btn-qr"><i class="fas fa-qrcode"></i> Show QR</button>
+        </header>
+
+        <section class="hero-section">
+            <div class="pet-card">
+                <div class="pet-info">
+                    <img src="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?ixlib=rb-1.2.1&auto=format&fit=crop&w=300&q=80"
+                        alt="Mamon" class="pet-avatar">
+                    <div class="pet-details">
+                        <h2>Mamon</h2>
+                        <div class="info-row"><i class="fas fa-paw"></i> Cat • Maine Coon</div>
+                        <div class="info-row"><i class="fas fa-mars"></i> Male</div>
+                        <div class="info-row"><i class="fas fa-birthday-cake"></i> March 15, 2020</div>
+                    </div>
+                </div>
+
+                <div class="family-sharing">
+                    <div class="family-left">
+                        <div class="family-title">Family Sharing</div>
+                        <div class="avatars">
+                            <img src="https://i.pravatar.cc/100?img=5" class="avatar-small">
+                            <img src="https://i.pravatar.cc/100?img=9" class="avatar-small">
+                            <span class="family-count">2 family members</span>
+                        </div>
+                    </div>
+                    <button class="btn-manage">Manage</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="history-section">
+            <div class="section-header">
+                <div class="section-title">Vaccination History</div>
+                <div class="badge-count">6 records</div>
+            </div>
+
+            <div class="vaccine-list">
+                <div class="vaccine-card">
+                    <div class="card-top">
+                        <div>
+                            <div class="vaccine-name">Nobivac Tricat Trio</div>
+                            <div class="vaccine-date">December 15, 2023</div>
+                        </div>
+                        <div class="verify-badge"><i class="fas fa-check-circle"></i> Verified</div>
+                    </div>
+                    <div class="card-bottom">
+                        <div class="tags">
+                            <span class="tag tag-pink">FVRCP</span>
+                            <span class="tag tag-green">Core</span>
+                        </div>
+                        <i class="fas fa-chevron-right arrow-icon"></i>
+                    </div>
+                </div>
+
+                <div class="vaccine-card">
+                    <div class="card-top">
+                        <div>
+                            <div class="vaccine-name">Rabies Vaccine</div>
+                            <div class="vaccine-date">November 20, 2023</div>
+                        </div>
+                        <div class="verify-badge"><i class="fas fa-check-circle"></i> Verified</div>
+                    </div>
+                    <div class="card-bottom">
+                        <div class="tags">
+                            <span class="tag tag-pink">Rabies</span>
+                            <span class="tag tag-green">Core</span>
+                        </div>
+                        <i class="fas fa-chevron-right arrow-icon"></i>
+                    </div>
+                </div>
+
+                <div class="vaccine-card">
+                    <div class="card-top">
+                        <div>
+                            <div class="vaccine-name">Purevax FeLV</div>
+                            <div class="vaccine-date">October 10, 2023</div>
+                        </div>
+                        <div class="pending-badge"><i class="fas fa-clock"></i> Pending</div>
+                    </div>
+                    <div class="card-bottom">
+                        <div class="tags">
+                            <span class="tag tag-pink">FeLV</span>
+                            <span class="tag tag-gray">Non-Core</span>
+                        </div>
+                        <i class="fas fa-chevron-right arrow-icon"></i>
+                    </div>
+                </div>
+
+                <div style="height: 60px;"></div>
+            </div>
+        </section>
+
+        <div class="footer-action">
+            <button class="btn-upload">
+                <i class="fas fa-plus"></i> Upload Past Record
+            </button>
+        </div>
+
+    </div>
+</body>
+
+</html>
