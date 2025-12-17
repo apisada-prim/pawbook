@@ -71,6 +71,7 @@ export default function VetStampPage() {
     const { petId } = params;
 
     // Form State
+    const [selectedVaccineType, setSelectedVaccineType] = useState("");
     const [selectedVaccineId, setSelectedVaccineId] = useState("");
     // Default to today
     const [dateAdministered] = useState(new Date().toISOString().split('T')[0]);
@@ -111,8 +112,16 @@ export default function VetStampPage() {
     const vetName = me?.fullName || "Unknown Vet";
     const clinicName = me?.vetProfile?.clinic?.name || "Independent / Unknown Clinic (Not Linked)";
 
-    // Filter vaccines by species
-    const availableVaccines = vaccines.filter((v: any) => v.species === pet.species);
+    // Filter vaccines by species (Robust Match)
+    const availableVaccines = vaccines.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase());
+
+    // Get unique types for this species
+    const uniqueTypes = Array.from(new Set(availableVaccines.map((v: any) => v.type)));
+
+    // Filter vaccines by selected type
+    const vaccinesByType = selectedVaccineType
+        ? availableVaccines.filter((v: any) => v.type === selectedVaccineType)
+        : [];
 
     // Sort Vaccination History (Newest First)
     const sortedHistory = pet.vaccinations ? [...pet.vaccinations].sort((a: any, b: any) => new Date(b.dateAdministered).getTime() - new Date(a.dateAdministered).getTime()) : [];
@@ -315,40 +324,69 @@ export default function VetStampPage() {
                             Add New Record
                         </h3>
                         <form onSubmit={handleStamp} className="space-y-6 bg-white rounded-xl">
-                            <div>
-                                <label className="block text-sm font-bold leading-6 text-gray-900 mb-1">Select Vaccine</label>
-                                <div className="relative">
-                                    <select
-                                        required
-                                        className="appearance-none block w-full rounded-xl border-0 py-3 pl-4 pr-10 text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 shadow-sm"
-                                        value={selectedVaccineId}
-                                        onChange={(e) => {
-                                            const newVaccineId = e.target.value;
-                                            setSelectedVaccineId(newVaccineId);
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Type Selector */}
+                                <div>
+                                    <label className="block text-sm font-bold leading-6 text-gray-900 mb-1">Vaccine Type</label>
+                                    <div className="relative">
+                                        <select
+                                            required
+                                            className="appearance-none block w-full rounded-xl border-0 py-3 pl-4 pr-10 text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 shadow-sm"
+                                            value={selectedVaccineType}
+                                            onChange={(e) => {
+                                                setSelectedVaccineType(e.target.value);
+                                                setSelectedVaccineId("");
+                                                setNextDueDate("");
+                                            }}
+                                        >
+                                            <option value="">-- Select Type --</option>
+                                            {uniqueTypes.map((type: any) => (
+                                                <option key={type} value={type}>{type}</option>
+                                            ))}
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                            <i className="fas fa-chevron-down text-xs"></i>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                            // Auto calc logic
-                                            if (newVaccineId && dateAdministered && pet.birthDate) {
-                                                const vaccine = vaccines.find((v: any) => v.id === newVaccineId);
-                                                if (vaccine) {
-                                                    const birth = new Date(pet.birthDate);
-                                                    const adminDate = new Date(dateAdministered);
-                                                    const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                                {/* Vaccine Selector */}
+                                <div>
+                                    <label className="block text-sm font-bold leading-6 text-gray-900 mb-1">Vaccine Name / Brand</label>
+                                    <div className="relative">
+                                        <select
+                                            required
+                                            disabled={!selectedVaccineType}
+                                            className={`appearance-none block w-full rounded-xl border-0 py-3 pl-4 pr-10 text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6 shadow-sm ${!selectedVaccineType ? 'bg-gray-100 cursor-not-allowed opacity-75' : ''}`}
+                                            value={selectedVaccineId}
+                                            onChange={(e) => {
+                                                const newVaccineId = e.target.value;
+                                                setSelectedVaccineId(newVaccineId);
 
-                                                    const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, dateAdministered, ageInWeeks);
-                                                    setNextDueDate(nextDate);
+                                                // Auto calc logic
+                                                if (newVaccineId && dateAdministered && pet.birthDate) {
+                                                    const vaccine = vaccines.find((v: any) => v.id === newVaccineId);
+                                                    if (vaccine) {
+                                                        const birth = new Date(pet.birthDate);
+                                                        const adminDate = new Date(dateAdministered);
+                                                        const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+
+                                                        const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, dateAdministered, ageInWeeks);
+                                                        setNextDueDate(nextDate);
+                                                    }
                                                 }
-                                            }
-                                        }}
-                                    >
-                                        <option value="">-- Choose Vaccine --</option>
-                                        {availableVaccines.map((v: any) => (
-                                            <option key={v.id} value={v.id}>
-                                                {v.name} ({v.brand}) - {v.type}
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
-                                        <i className="fas fa-chevron-down text-xs"></i>
+                                            }}
+                                        >
+                                            <option value="">-- Choose Vaccine --</option>
+                                            {vaccinesByType.map((v: any) => (
+                                                <option key={v.id} value={v.id}>
+                                                    {v.name} ({v.brand})
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                            <i className="fas fa-chevron-down text-xs"></i>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

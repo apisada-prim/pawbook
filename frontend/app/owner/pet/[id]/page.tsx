@@ -69,6 +69,8 @@ const GET_VACCINES = gql`
         id
         name
         brand
+        type
+        species
     }
 }
 `;
@@ -102,6 +104,7 @@ export default function PetDetailsPage() {
     const [legacyDate, setLegacyDate] = useState("");
     const [legacyNextDate, setLegacyNextDate] = useState("");
     const [legacyImage, setLegacyImage] = useState("");
+    const [legacyVaccineType, setLegacyVaccineType] = useState("");
     const [legacyVaccineId, setLegacyVaccineId] = useState("");
 
     const [selectedVaccineRecord, setSelectedVaccineRecord] = useState<any>(null);
@@ -173,6 +176,13 @@ export default function PetDetailsPage() {
         if (filterType === "ALL") return true;
         return record.vaccine.type === filterType;
     });
+
+    // Derived Logic for Legacy Upload Form (2-Step Selection)
+    const legacyAvailableVaccines = vaccineData?.vaccines?.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase()) || [];
+    const uniqueLegacyTypes = Array.from(new Set(legacyAvailableVaccines.map((v: any) => v.type)));
+    const legacyVaccinesByType = legacyVaccineType
+        ? legacyAvailableVaccines.filter((v: any) => v.type === legacyVaccineType)
+        : [];
 
     return (
         <div className={`min-h-screen bg-[#FFF9F4] ${nunito.className}`}>
@@ -406,19 +416,56 @@ export default function PetDetailsPage() {
                                     <button onClick={() => setShowLegacyForm(false)} className="text-gray-400 font-bold p-2">✕</button>
                                 </div>
                                 <form onSubmit={handleLegacyUpload} className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Type</label>
-                                        <select
-                                            required
-                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
-                                            value={legacyVaccineId}
-                                            onChange={(e) => setLegacyVaccineId(e.target.value)}
-                                        >
-                                            <option value="">Select Vaccine</option>
-                                            {vaccineData?.vaccines?.map((v: any) => (
-                                                <option key={v.id} value={v.id}>{v.name} ({v.brand})</option>
-                                            ))}
-                                        </select>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Type</label>
+                                            <select
+                                                required
+                                                className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
+                                                value={legacyVaccineType}
+                                                onChange={(e) => {
+                                                    setLegacyVaccineType(e.target.value);
+                                                    setLegacyVaccineId("");
+                                                    setLegacyNextDate("");
+                                                }}
+                                            >
+                                                <option value="">Select Type</option>
+                                                {uniqueLegacyTypes.map((type: any) => (
+                                                    <option key={type} value={type}>{type}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Name</label>
+                                            <select
+                                                required
+                                                disabled={!legacyVaccineType}
+                                                className={`w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900 ${!legacyVaccineType ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                value={legacyVaccineId}
+                                                onChange={(e) => {
+                                                    const newVaccineId = e.target.value;
+                                                    setLegacyVaccineId(newVaccineId);
+
+                                                    // Auto Calculation logic
+                                                    if (newVaccineId && legacyDate && pet.birthDate) {
+                                                        const vaccine = vaccineData?.vaccines?.find((v: any) => v.id === newVaccineId);
+                                                        if (vaccine) {
+                                                            const birth = new Date(pet.birthDate);
+                                                            const adminDate = new Date(legacyDate);
+                                                            const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+
+                                                            const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, legacyDate, ageInWeeks);
+                                                            setLegacyNextDate(nextDate);
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                <option value="">Select Vaccine</option>
+                                                {legacyVaccinesByType.map((v: any) => (
+                                                    <option key={v.id} value={v.id}>{v.name} ({v.brand})</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">Date of Vaccination</label>
@@ -438,7 +485,6 @@ export default function PetDetailsPage() {
                                                     if (vaccine) {
                                                         const birth = new Date(pet.birthDate);
                                                         const adminDate = new Date(newDate);
-                                                        // Calculate age in weeks roughly
                                                         const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
 
                                                         const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, newDate, ageInWeeks);

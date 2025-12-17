@@ -298,20 +298,20 @@ async function main() {
   }
 
   // Refactored to proper loop
+  // Refactored to proper loop
+  console.log(`Clearing existing vaccines...`);
+  try {
+    await prisma.vaccineRecord.deleteMany({});
+  } catch (e) {
+    console.log("No vaccine records to delete or error ignored.");
+  }
+  await prisma.vaccineMaster.deleteMany({});
+
   console.log(`Start seeding ...`);
   for (const v of vaccines) {
-    const exists = await prisma.vaccineMaster.findFirst({
-      where: {
-        name: v.name,
-        species: v.species
-      }
+    await prisma.vaccineMaster.create({
+      data: v
     })
-
-    if (!exists) {
-      await prisma.vaccineMaster.create({
-        data: v
-      })
-    }
   }
 
   console.log('Seeding finished.');
