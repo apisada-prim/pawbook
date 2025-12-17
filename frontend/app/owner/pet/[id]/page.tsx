@@ -238,7 +238,7 @@ export default function PetDetailsPage() {
                                             <i className="fas fa-paw w-4"></i> {pet.species === "CAT" ? "Cat" : "Dog"} • {pet.breed || "Mixed"}
                                         </div>
                                         <div className="flex items-center gap-2 text-sm mb-1 opacity-90 ml-2">
-                                            <i className="fas fa-mars w-4"></i> {pet.gender} • {pet.isSterilized ? "Sterilized" : "Not Sterilized"}
+                                            <i className="fas fa-mars w-4"></i> {pet.gender}{pet.isSterilized && ' • Sterilized'}
                                         </div>
                                         <div className="flex items-center gap-2 text-sm mb-1 opacity-90 ml-2">
                                             <i className="fas fa-birthday-cake w-4"></i> {new Date(pet.birthDate).toLocaleDateString()} ({calculateAge(pet.birthDate)})
@@ -372,11 +372,22 @@ export default function PetDetailsPage() {
                                 <button onClick={() => setShowQR(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
                                     <i className="fas fa-times text-xl"></i>
                                 </button>
-                                <h3 className="text-lg font-bold text-[#4A5568] mb-4">Pet QR Code</h3>
+                                {/* <h3 className="text-lg font-bold text-[#4A5568] mb-1">Pet QR Code</h3> */}
+                                <p className="text-lg font-bold text-[#8AD6C6] mb-2">{pet.name}</p>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <span className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-600 font-bold">
+                                        <i className={`fas fa-${pet.species === 'CAT' ? 'cat' : 'dog'} mr-2`}></i>
+                                        {pet.species === "CAT" ? "Cat" : "Dog"}
+                                    </span>
+                                    <span className="px-3 py-1 bg-gray-100 rounded-full text-sm text-gray-600 font-bold">
+                                        <i className="fas fa-venus-mars mr-2"></i>
+                                        {pet.gender}
+                                    </span>
+                                </div>
                                 <div className="bg-white p-2 rounded-xl mb-2">
                                     <QRCode value={pet.id} size={250} />
                                 </div>
-                                <p className="mt-2 text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded-full">{pet.id}</p>
+                                <p className="mt-1 text-xs text-gray-400 font-mono bg-gray-50 px-3 py-1 rounded-full">{pet.id}</p>
                                 <p className="text-xs text-gray-400 mt-2">Scan to access health records</p>
                             </div>
                         </div>

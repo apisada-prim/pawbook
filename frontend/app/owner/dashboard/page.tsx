@@ -35,6 +35,7 @@ const MY_PETS_QUERY = gql`
       birthDate
       image
       ownerId
+      isSterilized
     }
   }
 `;
@@ -276,7 +277,7 @@ export default function OwnerDashboard() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <i className="fas fa-venus-mars w-5 text-center text-[#8AD6C6]"></i>
-                                                <span className="capitalize">{pet.gender.toLowerCase()}</span>
+                                                <span className="capitalize">{pet.gender.toLowerCase()} {pet.isSterilized && '• Sterilized'}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <i className="fas fa-birthday-cake w-5 text-center text-[#8AD6C6]"></i>
