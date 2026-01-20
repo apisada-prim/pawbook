@@ -5,7 +5,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import Cookies from "js-cookie";
 import Link from "next/link";
-import { calculateNextVaccineDate, calculateAge } from "../../../utils/dateUtils";
+import { calculateNextVaccineDate, calculateAge, getDaysLeft } from "../../../utils/dateUtils";
+import { extractVaccineData } from "@/app/actions/extractVaccine";
+import { cropToSquare } from "../../../utils/imageUtils";
 
 const GET_DATA_QUERY = gql`
   query GetData($petId: String!) {
@@ -25,11 +27,23 @@ const GET_DATA_QUERY = gql`
                 name
                 brand
                 type
+                typeTH
             }
-        vet {
-            user {
+            dateAdministered
+            nextDueDate
+            isVerified
+            stickerImage
+            lotNumber
+            vet {
+                user {
                     fullName
                 }
+                clinic {
+                    name
+                }
+            }
+            clinic {
+                name
             }
         }
     }
@@ -52,6 +66,65 @@ const GET_DATA_QUERY = gql`
         }
     }
 }
+`;
+
+
+const VERIFY_QR_QUERY = gql`
+    query VerifyQr($token: String!) {
+        pet: verifyVaccineQr(token: $token) {
+            id
+            name
+            species
+            gender
+            birthDate
+            isSterilized
+            image
+            chronicDiseases
+            vaccinations {
+                id
+                dateAdministered
+                vaccine {
+                    name
+                    brand
+                    type
+                    typeTH
+                }
+                vet {
+                    user {
+                        fullName
+                    }
+                    clinic {
+                        name
+                    }
+                }
+                clinic {
+                    name
+                }
+                nextDueDate
+                isVerified
+                stickerImage
+                lotNumber
+            }
+        }
+        vaccines {
+            id
+            name
+            brand
+            type
+            species
+        }
+        me: whoAmI {
+            id
+            fullName
+            role
+            vetProfile {
+                licenseNumber
+                clinic {
+                    name
+                }
+            }
+        }
+    }
 `;
 
 
@@ -79,11 +152,38 @@ export default function VetStampPage() {
 
     // UI State
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+    const [errorModal, setErrorModal] = useState({ show: false, message: "" });
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-    const { data, loading, error } = useQuery(GET_DATA_QUERY, {
+    // Photo Logic State
+    const [hasPhoto, setHasPhoto] = useState(false);
+    const [stickerImageUrl, setStickerImageUrl] = useState("");
+    const [selectedVaccineRecord, setSelectedVaccineRecord] = useState<any>(null);
+
+    // Helper to close modal and redirect
+    const handleErrorModalClose = () => {
+        setErrorModal({ show: false, message: "" });
+        router.push("/vet/scanner");
+    };
+
+    // Check if petId is a UUID or a JWT Token
+    // UUID (v4) length is 36. JWT is usually much longer.
+    const isQrToken = !!(petId && petId.length > 36);
+
+    const { data: uuidData, loading: uuidLoading, error: uuidError } = useQuery(GET_DATA_QUERY, {
         variables: { petId },
-        skip: !petId
+        skip: !petId || isQrToken
     });
+
+    const { data: qrData, loading: qrLoading, error: qrError } = useQuery(VERIFY_QR_QUERY, {
+        variables: { token: petId },
+        skip: !petId || !isQrToken
+    });
+
+    const loading = uuidLoading || qrLoading;
+    const error = uuidError || qrError;
+    const data = isQrToken ? qrData : uuidData;
+
 
     const [stamp, { loading: stamping, error: stampError }] = useMutation(STAMP_MUTATION);
 
@@ -100,20 +200,22 @@ export default function VetStampPage() {
         }
     }, [loading, data, router]);
 
-    // Handle Loading/Error
-    if (loading) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Loading pet data...</div>;
-    if (error) return <div className="p-8 text-center text-red-500 min-h-screen bg-gray-50 flex items-center justify-center">Error: {error.message}</div>;
-    if (!data?.pet) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Pet not found</div>;
+    // Handle QR Query Error specifically
+    useEffect(() => {
+        if (qrError) {
+            setErrorModal({ show: true, message: qrError.message });
+        }
+    }, [qrError]);
 
-    const { pet, vaccines, me } = data;
-
-
+    const pet = data?.pet;
+    const vaccines = data?.vaccines || [];
+    const me = data?.me;
 
     const vetName = me?.fullName || "Unknown Vet";
     const clinicName = me?.vetProfile?.clinic?.name || "Independent / Unknown Clinic (Not Linked)";
 
     // Filter vaccines by species (Robust Match)
-    const availableVaccines = vaccines.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase());
+    const availableVaccines = pet ? vaccines.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase()) : [];
 
     // Get unique types for this species
     const uniqueTypes = Array.from(new Set(availableVaccines.map((v: any) => v.type)));
@@ -124,7 +226,103 @@ export default function VetStampPage() {
         : [];
 
     // Sort Vaccination History (Newest First)
-    const sortedHistory = pet.vaccinations ? [...pet.vaccinations].sort((a: any, b: any) => new Date(b.dateAdministered).getTime() - new Date(a.dateAdministered).getTime()) : [];
+    const sortedHistory = pet?.vaccinations ? [...pet.vaccinations].sort((a: any, b: any) => new Date(b.dateAdministered).getTime() - new Date(a.dateAdministered).getTime()) : [];
+
+    // Auto-select vaccine if only one option exists
+    useEffect(() => {
+        if (loading || !pet) return; // Guard against loading state in effect
+
+        if (vaccinesByType.length === 1 && !selectedVaccineId) {
+            const v = vaccinesByType[0];
+            setSelectedVaccineId(v.id);
+            // Trigger auto date calc logic
+            if (dateAdministered && pet.birthDate) {
+                const birth = new Date(pet.birthDate);
+                const adminDate = new Date(dateAdministered);
+                const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                const nextDate = calculateNextVaccineDate(pet.species, v.type, dateAdministered, ageInWeeks);
+                setNextDueDate(nextDate);
+            }
+        }
+    }, [vaccinesByType, selectedVaccineId, dateAdministered, pet, loading]);
+
+    // Handle Loading/Error/Modal Render Logic MOVED BELOW HOOKS
+    // We cannot return early above if we have hooks below.
+    // However, availableVaccines/vaccinesByType are derived state that depend on 'data'.
+    // If 'data' is undefined (loading), these will crash if computed top-level.
+    // So we must handle derived state safely or use empty defaults.
+
+
+    const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const originalFile = e.target.files?.[0];
+        if (!originalFile) return;
+
+        setIsAnalyzing(true);
+        try {
+            const file = await cropToSquare(originalFile);
+
+            // 1. Upload Image First
+            const uploadData = new FormData();
+            uploadData.append("file", file);
+
+            // Use the same upload endpoint as Owner side
+            const uploadRes = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/uploads`, {
+                method: "POST",
+                body: uploadData,
+            });
+
+            if (!uploadRes.ok) throw new Error("Failed to upload image");
+
+            const uploadJson = await uploadRes.json();
+            const imageUrl = uploadJson.url;
+
+            setStickerImageUrl(imageUrl);
+            setHasPhoto(true);
+
+            // 2. Run OCR Analysis
+            const result = await extractVaccineData(uploadData); // Server Action handles FormData directly
+
+            if (result.vaccineName) {
+                // Fuzzy match vaccine
+                // Filter by species first
+                const speciesVaccines = vaccines.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase());
+
+                // Find match
+                const match = speciesVaccines.find((v: any) =>
+                    v.name.toLowerCase().includes((result.vaccineName || "").toLowerCase()) ||
+                    (result.vaccineName || "").toLowerCase().includes(v.name.toLowerCase())
+                );
+
+                if (match) {
+                    setSelectedVaccineType(match.type);
+                    setSelectedVaccineId(match.id);
+
+                    // Auto Next Due Calculation
+                    if (dateAdministered && pet.birthDate) {
+                        const birth = new Date(pet.birthDate);
+                        const adminDate = new Date(dateAdministered);
+                        const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
+                        const nextDate = calculateNextVaccineDate(pet.species, match.type, dateAdministered, ageInWeeks);
+                        setNextDueDate(nextDate);
+                    }
+
+                    alert(`Detected: ${match.name} (${match.type})`);
+                } else {
+                    // Silent failure: just unlock form
+                    // alert(`Saved photo. Could not find a matching vaccine in database for "${result.vaccineName}", but you can now select manually.`);
+                }
+            } else {
+                // Silent failure: just unlock form
+                // alert("Saved photo. Could not detect vaccine name text, but you can now select manually.");
+            }
+
+        } catch (err) {
+            console.error("OCR/Upload Error", err);
+            alert("Failed to upload/analyze image. Please try again.");
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     const handleStamp = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -135,16 +333,45 @@ export default function VetStampPage() {
                         petId: pet.id,
                         vaccineMasterId: selectedVaccineId,
                         dateAdministered: new Date(dateAdministered).toISOString(),
-                        nextDueDate: nextDueDate ? new Date(nextDueDate).toISOString() : undefined
+                        nextDueDate: nextDueDate ? new Date(nextDueDate).toISOString() : undefined,
+                        qrToken: isQrToken ? (petId as string) : undefined,
+                        stickerImage: stickerImageUrl // Pass the image
                     }
                 }
             });
             alert("Vaccine Stamped Successfully!");
             router.push("/vet/dashboard");
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            setErrorModal({ show: true, message: err.message || "Failed to stamp vaccine." });
         }
     };
+
+    // Handle Loading/Error/Modal Render Logic
+    if (loading) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Loading pet data...</div>;
+    if (error) return <div className="p-8 text-center text-red-500 min-h-screen bg-gray-50 flex items-center justify-center">Error: {error.message}</div>;
+    if (!pet) return <div className="p-8 text-center min-h-screen bg-gray-50 flex items-center justify-center">Pet not found</div>;
+
+    // Error Modal Component
+    if (errorModal.show) {
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fade-in">
+                <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl text-center animate-scale-up">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i className="fa-solid fa-xmark text-3xl text-red-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Error</h3>
+                    <p className="text-gray-500 mb-6">{errorModal.message}</p>
+                    <button
+                        onClick={handleErrorModalClose}
+                        className="w-full bg-red-500 text-white font-bold py-3 px-4 rounded-xl hover:bg-red-600 transition-colors shadow-lg shadow-red-200 flex items-center justify-center gap-2"
+                    >
+                        Back to Scanner
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans">
@@ -214,89 +441,92 @@ export default function VetStampPage() {
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <div className="flex items-center">
-                                        <div className="w-8 flex justify-center text-indigo-400 mr-2"><i className="fas fa-birthday-cake"></i></div>
-                                        <div>
-                                            <span className="block text-xs font-semibold text-gray-500 uppercase">Age / Birthday</span>
-                                            <span className="block font-medium text-gray-900">
-                                                {calculateAge(pet.birthDate)} <span className="text-gray-400 text-xs">({new Date(pet.birthDate).toLocaleDateString()})</span>
-                                            </span>
-                                        </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="flex items-center">
+                                    <div className="w-8 flex justify-center text-indigo-400 mr-2"><i className="fas fa-birthday-cake"></i></div>
+                                    <div>
+                                        <span className="block text-xs font-semibold text-gray-500 uppercase">Age / Birthday</span>
+                                        <span className="block font-medium text-gray-900">
+                                            {calculateAge(pet.birthDate)} <span className="text-gray-400 text-xs">({new Date(pet.birthDate).toLocaleDateString()})</span>
+                                        </span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-
-                        {pet.chronicDiseases && (
-                            <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-4 animate-pulse-slow">
-                                <span className="text-2xl">⚠️</span>
-                                <div>
-                                    <p className="text-red-800 font-bold text-xs uppercase mb-1 tracking-wide">Chronic Diseases (โรคประจำตัว)</p>
-                                    <p className="text-red-900 font-bold">{pet.chronicDiseases}</p>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
+                    {pet.chronicDiseases && (
+                        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-4 animate-pulse-slow">
+                            <span className="text-2xl">⚠️</span>
+                            <div>
+                                <p className="text-red-800 font-bold text-xs uppercase mb-1 tracking-wide">Chronic Diseases (โรคประจำตัว)</p>
+                                <p className="text-red-900 font-bold">{pet.chronicDiseases}</p>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Vaccination History Section - NEW LOGIC */}
-                    <div className="mb-10">
+                    <div className="mb-10 mt-10">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex items-center gap-2">
                                 <i className="fas fa-history text-gray-400"></i> Vaccination History
-                            </h3>
-                            <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{sortedHistory.length} Records</span>
-                        </div>
+                            </h3></div>
 
                         <div className="space-y-3">
                             {sortedHistory.length > 0 ? (
-                                sortedHistory.map((record: any, index: number) => (
-                                    <div
-                                        key={record.id}
-                                        className={`bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group 
-                                            ${index > 0 && !isHistoryExpanded ? 'hidden md:block' : 'block'}`}
-                                    >
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-teal-400 to-teal-600"></div>
-                                        <div className="flex justify-between items-start pl-3">
-                                            <div>
-                                                <div className="font-bold text-gray-800 text-lg">{record.vaccine.name}</div>
-                                                <div className="text-xs text-gray-500 mt-1 flex gap-2 items-center">
-                                                    <span className="bg-teal-50 text-teal-700 font-bold px-2 py-0.5 rounded border border-teal-100 uppercase text-[10px]">{record.vaccine.type}</span>
-                                                    <span className="text-gray-400">|</span>
-                                                    <span>{record.vaccine.brand}</span>
+                                <>
+                                    {(isHistoryExpanded ? sortedHistory : sortedHistory.slice(0, 1)).map((record: any) => (
+                                        <div
+                                            key={record.id}
+                                            onClick={() => setSelectedVaccineRecord(record)}
+                                            className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 relative overflow-hidden group cursor-pointer"
+                                        >
+                                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-400 to-indigo-600"></div>
+                                            <div className="flex justify-between items-start pl-3">
+                                                <div>
+                                                    <div className="font-bold text-gray-800 text-lg">{record.vaccine.name}</div>
+                                                    <div className="text-xs text-gray-500 mt-1 flex gap-2 items-center">
+                                                        <span className="bg-indigo-50 text-indigo-700 font-bold px-2 py-0.5 rounded border border-indigo-100 uppercase text-[10px]">{record.vaccine.type}</span>
+                                                        <span className="text-gray-400">|</span>
+                                                        <span>{record.vaccine.brand}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm font-bold text-indigo-600 font-mono bg-indigo-50 px-2 py-1 rounded">{new Date(record.dateAdministered).toLocaleDateString()}</div>
-                                                <div className="text-[10px] text-gray-400 mt-1">
-                                                    By: {record.vet?.user?.fullName || 'External'}
+                                                <div className="text-right">
+                                                    <div className="text-[12px] font-bold text-indigo-600 font-mono bg-indigo-50 px-2 py-1 rounded">Date Administered: {new Date(record.dateAdministered).toLocaleDateString()}</div>
+                                                    <div className="text-[10px] text-gray-400 mt-1">
+                                                        {"by "}
+                                                        {record.isVerified ? (record.clinic?.name || record.vet?.clinic?.name || 'Verified Clinic') : "Owner Upload"}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))
+                                    ))}
+
+                                    {/* Expand Button */}
+                                    {sortedHistory.length > 3 && (
+                                        <button
+                                            onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+                                            className="w-full py-3 text-sm text-gray-500 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
+                                        >
+                                            {isHistoryExpanded ? (
+                                                <>Show Less <i className="fas fa-chevron-up"></i></>
+                                            ) : (
+                                                <>View All History ({sortedHistory.length}) <i className="fas fa-chevron-down"></i></>
+                                            )}
+                                        </button>
+                                    )}
+                                </>
                             ) : (
                                 <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
                                     <i className="fas fa-syringe text-gray-300 text-3xl mb-2"></i>
                                     <p className="text-gray-400 text-sm">No recent vaccinations recorded.</p>
                                 </div>
                             )}
-
-                            {/* Mobile Expand Button */}
-                            {sortedHistory.length > 1 && (
-                                <button
-                                    onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
-                                    className="md:hidden w-full py-3 text-sm text-indigo-600 font-bold bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
-                                >
-                                    {isHistoryExpanded ? (
-                                        <>Show Less <i className="fas fa-chevron-up"></i></>
-                                    ) : (
-                                        <>View All History ({sortedHistory.length}) <i className="fas fa-chevron-down"></i></>
-                                    )}
-                                </button>
-                            )}
                         </div>
                     </div>
+
 
                     <div className="border-t-2 border-dashed border-gray-200 my-8"></div>
 
@@ -323,10 +553,66 @@ export default function VetStampPage() {
                             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-600 text-white text-sm"><i className="fas fa-plus"></i></span>
                             Add New Record
                         </h3>
+
+                        {/* Large Scan Button & Preview Area */}
+                        <div className="mb-6">
+                            {!stickerImageUrl ? (
+                                <label className={`block w-full border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50 hover:bg-indigo-100 rounded-2xl p-8 text-center cursor-pointer transition-all group ${isAnalyzing ? 'opacity-70 pointer-events-none' : ''}`}>
+                                    {isAnalyzing ? (
+                                        <div className="flex flex-col items-center">
+                                            <i className="fas fa-spinner fa-spin text-3xl text-indigo-400 mb-2"></i>
+                                            <span className="font-bold text-indigo-500">Analyzing Vaccine Sticker...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-3">
+                                            <div className="w-16 h-16 bg-white rounded-full shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                <i className="fas fa-camera text-3xl text-indigo-500"></i>
+                                            </div>
+                                            <div>
+                                                <span className="block text-lg font-bold text-indigo-900">Tap to Take Photo</span>
+                                                <span className="text-indigo-400 text-sm">Upload vaccine label to auto-fill</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <input type="file" accept="image/*;capture=camera" className="hidden" onChange={handleImageSelect} disabled={isAnalyzing} />
+                                </label>
+                            ) : (
+                                <div className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-sm bg-gray-50">
+                                    <div className="aspect-video w-full relative bg-black/5">
+                                        <img src={stickerImageUrl} alt="Sticker Preview" className="w-full h-full object-contain" />
+                                    </div>
+                                    <div className="p-4 flex items-center justify-between bg-white">
+                                        <div className="flex items-center gap-2 text-green-600 font-bold text-sm">
+                                            <i className="fas fa-check-circle"></i> Photo Attached
+                                        </div>
+                                        <label className="text-indigo-600 font-bold text-sm cursor-pointer hover:underline">
+                                            Retake Photo
+                                            <input type="file" accept="image/*;capture=camera" className="hidden" onChange={handleImageSelect} disabled={isAnalyzing} />
+                                        </label>
+                                    </div>
+                                    {isAnalyzing && (
+                                        <div className="absolute inset-0 bg-white/80 flex items-center justify-center backdrop-blur-sm z-10">
+                                            <div className="flex flex-col items-center">
+                                                <i className="fas fa-spinner fa-spin text-3xl text-indigo-500 mb-2"></i>
+                                                <span className="font-bold text-indigo-600">Re-analyzing...</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {!hasPhoto && !stickerImageUrl && (
+                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm p-3 rounded-lg mb-6 flex items-start gap-3">
+                                <i className="fas fa-info-circle mt-0.5 text-yellow-600"></i>
+                                <span>You must take a photo of the vaccine label to unlock the form.</span>
+                            </div>
+                        )}
+
                         <form onSubmit={handleStamp} className="space-y-6 bg-white rounded-xl">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Type Selector */}
-                                <div>
+                                <div className={!hasPhoto ? 'opacity-50 pointer-events-none grayscale' : ''}>
                                     <label className="block text-sm font-bold leading-6 text-gray-900 mb-1">Vaccine Type</label>
                                     <div className="relative">
                                         <select
@@ -351,7 +637,7 @@ export default function VetStampPage() {
                                 </div>
 
                                 {/* Vaccine Selector */}
-                                <div>
+                                <div className={!hasPhoto ? 'opacity-50 pointer-events-none grayscale' : ''}>
                                     <label className="block text-sm font-bold leading-6 text-gray-900 mb-1">Vaccine Name / Brand</label>
                                     <div className="relative">
                                         <select
@@ -440,6 +726,115 @@ export default function VetStampPage() {
                             </div>
                         </form>
                     </div>
+
+                    {/* Vaccine Details Modal (Vet Theme) */}
+                    {selectedVaccineRecord && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-5 backdrop-blur-md" onClick={() => setSelectedVaccineRecord(null)}>
+                            <div className="bg-white w-full max-w-lg rounded-[24px] overflow-hidden shadow-2xl animate-pop-in" onClick={e => e.stopPropagation()}>
+                                <div className="bg-[#667EEA] p-5 text-white flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-bold text-xl">Vaccine Details</h3>
+                                        <p className="text-indigo-100 text-xs mt-1">
+                                            {selectedVaccineRecord.isVerified ?
+                                                <span className="flex items-center gap-1"><i className="fas fa-check-circle"></i> {selectedVaccineRecord.vet?.clinic?.name || selectedVaccineRecord.clinic?.name || 'Verified Clinic'}</span> :
+                                                <span className="flex items-center gap-1"><i className="fas fa-user"></i> Owner Upload</span>
+                                            }
+                                        </p>
+                                    </div>
+                                    <button onClick={() => setSelectedVaccineRecord(null)} className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full hover:bg-white/30 transition-colors">✕</button>
+                                </div>
+
+                                <div className="p-6 relative overflow-y-auto max-h-[80vh]">
+                                    {selectedVaccineRecord.isVerified && (
+                                        <div className="absolute top-10 right-10 opacity-10 pointer-events-none z-0 -rotate-[15deg]">
+                                            <img src="/logo.png" className="w-64 h-64" alt="Verified Watermark" />
+                                        </div>
+                                    )}
+
+                                    <div className="relative z-10 space-y-6">
+                                        {/* Header Info */}
+                                        <div className="text-center">
+                                            <h2 className="text-2xl font-bold text-gray-800">{selectedVaccineRecord.vaccine.name}</h2>
+                                            <p className="text-gray-500 font-medium">{selectedVaccineRecord.vaccine.brand}</p>
+                                            <div className="flex justify-center gap-2 mt-2">
+                                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-100 text-indigo-700 uppercase tracking-wide">
+                                                    {selectedVaccineRecord.vaccine.type}
+                                                </span>
+                                                {selectedVaccineRecord.vaccine.typeTH && (
+                                                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">
+                                                        {selectedVaccineRecord.vaccine.typeTH}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Proof Image */}
+                                        {selectedVaccineRecord.stickerImage ? (
+                                            <div className="bg-gray-50 p-2 rounded-2xl border border-gray-100">
+                                                <p className="text-xs font-bold text-gray-400 mb-2 uppercase tracking-wide ml-1">Evidence / Sticker</p>
+                                                <div className="rounded-xl overflow-hidden shadow-sm aspect-video bg-white flex items-center justify-center">
+                                                    <img
+                                                        src={selectedVaccineRecord.stickerImage}
+                                                        className="w-full h-full object-contain"
+                                                        alt="Sticker Proof"
+                                                    />
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-gray-50 p-6 rounded-2xl border-2 border-dashed border-gray-200 text-center">
+                                                <i className="fas fa-image text-gray-300 text-3xl mb-2"></i>
+                                                <p className="text-gray-400 text-sm">No image proof available</p>
+                                            </div>
+                                        )}
+
+                                        {/* Details Grid */}
+                                        <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100">
+                                            <div className="space-y-4 text-sm">
+                                                {selectedVaccineRecord.lotNumber && (
+                                                    <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                                                        <span className="text-gray-500">Lot Number</span>
+                                                        <span className="font-mono font-bold text-gray-800 bg-white px-2 py-1 rounded border border-gray-200">
+                                                            {selectedVaccineRecord.lotNumber}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                                                    <span className="text-gray-500">Date Administered</span>
+                                                    <span className="font-bold text-gray-800">{new Date(selectedVaccineRecord.dateAdministered).toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                                                </div>
+
+                                                <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                                                    <span className="text-gray-500">Next Due Date</span>
+                                                    <div className="text-right">
+                                                        <div className="font-bold text-[#F6A6A6]">
+                                                            {selectedVaccineRecord.nextDueDate ? new Date(selectedVaccineRecord.nextDueDate).toLocaleDateString("en-GB", {
+                                                                day: 'numeric', month: 'long', year: 'numeric'
+                                                            }) : "-"}
+                                                        </div>
+                                                        {getDaysLeft(selectedVaccineRecord.nextDueDate) && (
+                                                            <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold mt-1 ${getDaysLeft(selectedVaccineRecord.nextDueDate)?.color}`}>
+                                                                <i className="fas fa-clock text-[9px]"></i> {getDaysLeft(selectedVaccineRecord.nextDueDate)?.days} days left
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex justify-between items-center pt-1">
+                                                    <span className="text-gray-500">Source</span>
+                                                    <span className="font-bold text-indigo-600">
+                                                        {selectedVaccineRecord.isVerified
+                                                            ? `By ${selectedVaccineRecord.clinic?.name || selectedVaccineRecord.vet?.clinic?.name || 'Verified Clinic'}`
+                                                            : "By Owner Upload"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

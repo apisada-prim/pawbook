@@ -7,6 +7,8 @@ import Cookies from "js-cookie";
 import Link from "next/link";
 import { Nunito } from "next/font/google";
 
+import { cropToSquare } from "../../../../utils/imageUtils";
+
 const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
 const GET_PET_QUERY = gql`
@@ -109,12 +111,12 @@ export default function EditPetPage() {
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.[0]) return;
 
-        const file = e.target.files[0];
-        const formData = new FormData();
-        formData.append("file", file);
-
+        const originalFile = e.target.files[0];
         setUploading(true);
         try {
+            const file = await cropToSquare(originalFile);
+            const formData = new FormData();
+            formData.append("file", file);
             const token = Cookies.get("token");
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
             const response = await fetch(`${apiUrl}/uploads`, {

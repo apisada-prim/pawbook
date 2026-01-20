@@ -8,10 +8,14 @@ export class PetsService {
     constructor(private prisma: PrismaService) { }
 
     create(ownerId: string, createPetInput: CreatePetInput) {
+        const { powerStats, socialLinks, ...rest } = createPetInput;
         return this.prisma.pet.create({
             data: {
-                ...createPetInput,
+                ...rest,
                 ownerId,
+                // Cast to any to avoid "Index signature missing" error for Json type
+                powerStats: powerStats as any,
+                socialLinks: socialLinks as any,
             },
         });
     }
@@ -51,6 +55,7 @@ export class PetsService {
         return this.prisma.pet.findUnique({
             where: { id },
             include: {
+                owner: true,
                 pastOwners: true,
                 vaccinations: {
                     include: {

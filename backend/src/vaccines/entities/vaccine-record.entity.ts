@@ -42,6 +42,9 @@ export class VaccineRecord {
     @Field(() => VetProfile, { nullable: true })
     vet?: VetProfile;
 
+    @Field({ nullable: true })
+    lotNumber?: string;
+
     @Field()
     isVerified: boolean;
 }

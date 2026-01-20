@@ -105,7 +105,15 @@ model Pet {
   image         String?   // URL to pet photo
   isSterilized  Boolean   @default(false)
   chronicDiseases String? // Comma-separated or simple text
+  isLost        Boolean   @default(false)
   
+  // Public Profile Fields
+  socialTags      String[]
+  powerStats      Json?     // [{ label: "Cuteness", value: 10 }, ...]
+  favoriteThings  String[]
+  secretHabits    String[]
+  socialLinks     Json?     // { facebook, instagram, tiktok, youtube }
+
   // Transfer / Passport Fields
   transferCode      String?   @unique
   transferExpiresAt DateTime?
@@ -113,6 +121,7 @@ model Pet {
 
   // Relations
   vaccinations  VaccineRecord[]
+  vaccineQrTokens VaccineQrToken[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -122,6 +131,7 @@ model VaccineMaster {
   name        String   // e.g. "Defensor 3"
   brand       String   // e.g. "Zoetis"
   type        String   // e.g. "Rabies"
+  typeTH      String?  // e.g. "พิษสุนัขบ้า"
   species     Species
   isCore      Boolean  @default(false)
   description String?
@@ -163,5 +173,20 @@ model AuditLog {
   user      User     @relation(fields: [userId], references: [id])
   action    String
   details   String?
+  createdAt DateTime @default(now())
+}
+
+model VaccineQrToken {
+  id        String   @id @default(uuid())
+  token     String   @unique // The JWT signature or full token
+  petId     String
+  pet       Pet      @relation(fields: [petId], references: [id])
+  
+  createdByUserId String
+  
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  usedAt    DateTime?
+  
   createdAt DateTime @default(now())
 }

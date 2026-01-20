@@ -15,6 +15,9 @@ export class VaccineMaster {
     @Field()
     type: string;
 
+    @Field({ nullable: true })
+    typeTH?: string;
+
     @Field(() => Species)
     species: Species;
 

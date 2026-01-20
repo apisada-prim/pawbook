@@ -8,31 +8,29 @@ import { GqlAuthGuard } from '../auth/gql-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 
 @Resolver(() => Pet)
-@UseGuards(GqlAuthGuard)
 export class PetsResolver {
     constructor(private readonly petsService: PetsService) { }
 
     @Mutation(() => Pet)
+    @UseGuards(GqlAuthGuard)
     createPet(@CurrentUser() user: any, @Args('createPetInput') createPetInput: CreatePetInput) {
         return this.petsService.create(user.id, createPetInput);
     }
 
     @Query(() => [Pet], { name: 'myPets' })
+    @UseGuards(GqlAuthGuard)
     myPets(
         @CurrentUser() user: any,
         @Args('familyId', { nullable: true }) familyId?: string
     ) {
         if (familyId) {
-            // TODO: Add authorization check here? Or service handles logic?
-            // Service just fetches by familyId.
-            // Ideally, check if user is member of familyId.
-            // For now, let's assume if you have ID you can view (or check membership in service wrapper)
             return this.petsService.findAllByFamily(familyId);
         }
         return this.petsService.findAllByOwner(user.id);
     }
 
     @Query(() => [Pet], { name: 'myAlumniPets' })
+    @UseGuards(GqlAuthGuard)
     myAlumniPets(@CurrentUser() user: any) {
         return this.petsService.findAlumni(user.id);
     }
@@ -41,6 +39,18 @@ export class PetsResolver {
     @UseGuards(GqlAuthGuard)
     findOne(@Args('id', { type: () => String }) id: string) {
         return this.petsService.findOne(id);
+    }
+
+    @Query(() => Pet, { name: 'publicPet' })
+    async findPublicPet(@Args('id', { type: () => String }) id: string) {
+        const pet = await this.petsService.findOne(id) as any;
+        if (pet && pet.owner && pet.isLost) {
+            // Keep phone number if lost
+        } else if (pet && pet.owner) {
+            // Nullify phone number otherwise
+            pet.owner.phoneNumber = null;
+        }
+        return pet;
     }
 
     @Mutation(() => Pet)

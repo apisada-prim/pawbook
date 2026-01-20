@@ -7,6 +7,21 @@ registerEnumType(Species, { name: 'Species' });
 registerEnumType(Gender, { name: 'Gender' });
 
 @ObjectType()
+export class SocialLinks {
+    @Field({ nullable: true })
+    facebook?: string;
+
+    @Field({ nullable: true })
+    instagram?: string;
+
+    @Field({ nullable: true })
+    tiktok?: string;
+
+    @Field({ nullable: true })
+    youtube?: string;
+}
+
+@ObjectType()
 export class Pet {
     @Field(() => ID)
     id: string;
@@ -41,6 +56,9 @@ export class Pet {
     @Field(() => String, { nullable: true })
     chronicDiseases?: string;
 
+    @Field(() => Boolean)
+    isLost: boolean;
+
     @Field(() => User, { nullable: true })
     owner?: User;
 
@@ -55,5 +73,30 @@ export class Pet {
 
     @Field(() => [VaccineRecord], { nullable: true })
     vaccinations?: VaccineRecord[];
+
+    // Public Profile Fields
+    @Field(() => [String], { nullable: 'itemsAndList' })
+    socialTags?: string[];
+
+    @Field(() => [PowerStat], { nullable: 'itemsAndList' })
+    powerStats?: PowerStat[];
+
+    @Field(() => SocialLinks, { nullable: true })
+    socialLinks?: SocialLinks;
+
+    @Field(() => [String], { nullable: 'itemsAndList' })
+    favoriteThings?: string[];
+
+    @Field(() => [String], { nullable: 'itemsAndList' })
+    secretHabits?: string[];
+}
+
+@ObjectType()
+export class PowerStat {
+    @Field()
+    label: string;
+
+    @Field()
+    value: number;
 }
 

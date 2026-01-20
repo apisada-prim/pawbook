@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Nunito } from "next/font/google";
 
+import { cropToSquare } from "../../utils/imageUtils";
+
 const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
 const GET_PROFILE_QUERY = gql`
@@ -157,12 +159,13 @@ export default function AccountPage() {
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (!e.target.files?.[0]) return;
-        const file = e.target.files[0];
-        const uploadFormData = new FormData();
-        uploadFormData.append("file", file);
+        const originalFile = e.target.files[0];
 
         setUploading(true);
         try {
+            const file = await cropToSquare(originalFile);
+            const uploadFormData = new FormData();
+            uploadFormData.append("file", file);
             const token = Cookies.get("token");
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
             const response = await fetch(`${apiUrl}/uploads`, {
@@ -360,27 +363,6 @@ export default function AccountPage() {
 
                 {/* Family Sharing Section */}
                 <div className="space-y-6 md:col-span-7 lg:col-span-8">
-                    {/* Unpack / Claim Pet */}
-                    <div className="bg-white rounded-[24px] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-gray-100 p-6">
-                        <h2 className="text-lg font-bold text-[#4A5568] mb-4 flex items-center gap-2">
-                            <i className="fas fa-box-open text-[#8AD6C6]"></i> Unpack (Claim Pet)
-                        </h2>
-                        <div className="flex gap-2">
-                            <input
-                                className="flex-1 bg-gray-50 border border-gray-200 rounded-[12px] px-3 py-2 text-sm outline-none focus:border-[#8AD6C6] font-mono text-center uppercase text-gray-900 placeholder:text-gray-300"
-                                placeholder="ENTER-CODE"
-                                value={claimCode}
-                                onChange={(e) => setClaimCode(e.target.value.toUpperCase())}
-                            />
-                            <button
-                                onClick={handleClaimPet}
-                                className="bg-[#8AD6C6] text-white px-4 py-2 rounded-[12px] font-bold text-sm hover:bg-[#76BDB0]"
-                            >
-                                Claim
-                            </button>
-                        </div>
-                    </div>
-
                     <div className="bg-white rounded-[24px] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-gray-100 p-6">
                         <h2 className="text-lg font-bold text-[#4A5568] mb-4 flex items-center gap-2">
                             <i className="fas fa-users text-[#8AD6C6]"></i> Family & Sharing
@@ -519,6 +501,27 @@ export default function AccountPage() {
                                     </p>
                                 )}
                             </div>
+                        </div>
+                    </div>
+
+                    {/* Unpack / Claim Pet */}
+                    <div className="bg-white rounded-[24px] shadow-[0_4px_15px_rgba(0,0,0,0.03)] border border-gray-100 p-6">
+                        <h2 className="text-lg font-bold text-[#4A5568] mb-4 flex items-center gap-2">
+                            <i className="fas fa-box-open text-[#8AD6C6]"></i> Unpack (Claim Pet)
+                        </h2>
+                        <div className="flex gap-2">
+                            <input
+                                className="flex-1 bg-gray-50 border border-gray-200 rounded-[12px] px-3 py-2 text-sm outline-none focus:border-[#8AD6C6] font-mono text-center uppercase text-gray-900 placeholder:text-gray-300"
+                                placeholder="ENTER-CODE"
+                                value={claimCode}
+                                onChange={(e) => setClaimCode(e.target.value.toUpperCase())}
+                            />
+                            <button
+                                onClick={handleClaimPet}
+                                className="bg-[#8AD6C6] text-white px-4 py-2 rounded-[12px] font-bold text-sm hover:bg-[#76BDB0]"
+                            >
+                                Claim
+                            </button>
                         </div>
                     </div>
                 </div>

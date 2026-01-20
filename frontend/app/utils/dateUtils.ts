@@ -66,3 +66,20 @@ export function calculateNextVaccineDate(species: string, vaccineType: string, d
     date.setDate(date.getDate() + (weeksToAdd * 7));
     return date.toISOString().split('T')[0];
 }
+
+export function getDaysLeft(dateString: string | null | undefined): { days: number; color: string } | null {
+    if (!dateString) return null;
+    const target = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    target.setHours(0, 0, 0, 0);
+
+    const diffTime = target.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    let color = "bg-[#FFF5F5] text-[#F6A6A6]";
+    if (diffDays < 0) color = "bg-red-100 text-red-600";
+    else if (diffDays <= 7) color = "bg-orange-100 text-orange-600";
+
+    return { days: diffDays, color };
+}

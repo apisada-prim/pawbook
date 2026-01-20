@@ -11,7 +11,10 @@ import { Nunito } from "next/font/google";
 // Font Configuration
 const nunito = Nunito({ subsets: ["latin"], weight: ["400", "600", "700", "800"] });
 
-import { calculateAge, calculateNextVaccineDate } from "../../../utils/dateUtils";
+import { calculateAge, calculateNextVaccineDate, getDaysLeft } from "../../../utils/dateUtils";
+import EditPublicProfileModal from "./_components/EditPublicProfileModal";
+import AddVaccineModal from "./_components/AddVaccineModal";
+import VaccineQrModal from "./_components/VaccineQrModal";
 
 const GET_PET_QUERY = gql`
   query GetPet($id: String!) {
@@ -27,17 +30,27 @@ const GET_PET_QUERY = gql`
       birthDate
       isSterilized
       chronicDiseases
+      isLost
+      socialTags
+      powerStats {
+        label
+        value
+      }
+      favoriteThings
+      secretHabits
       vaccinations {
         id
         vaccine {
            name
            brand
            type
+           typeTH
         }
         dateAdministered
         nextDueDate
         isVerified
         stickerImage
+        lotNumber
         vet {
             licenseNumber
             user {
@@ -70,6 +83,7 @@ const GET_VACCINES = gql`
         name
         brand
         type
+        typeTH
         species
     }
 }
@@ -91,6 +105,15 @@ const DELETE_PET = gql`
 }
 `;
 
+const UPDATE_PET = gql`
+  mutation UpdatePet($input: UpdatePetInput!) {
+    updatePet(updatePetInput: $input) {
+      id
+      isLost
+    }
+  }
+`;
+
 export default function PetDetailsPage() {
     const router = useRouter();
     const params = useParams();
@@ -101,11 +124,10 @@ export default function PetDetailsPage() {
 
     // Legacy Upload State
     const [showLegacyForm, setShowLegacyForm] = useState(false);
-    const [legacyDate, setLegacyDate] = useState("");
-    const [legacyNextDate, setLegacyNextDate] = useState("");
-    const [legacyImage, setLegacyImage] = useState("");
-    const [legacyVaccineType, setLegacyVaccineType] = useState("");
-    const [legacyVaccineId, setLegacyVaccineId] = useState("");
+    const [showActionSheet, setShowActionSheet] = useState(false);
+    const [showNewQrModal, setShowNewQrModal] = useState(false);
+    const [showEditProfile, setShowEditProfile] = useState(false);
+    const [showSosModal, setShowSosModal] = useState(false);
 
     const [selectedVaccineRecord, setSelectedVaccineRecord] = useState<any>(null);
     const [filterType, setFilterType] = useState("ALL");
@@ -121,6 +143,7 @@ export default function PetDetailsPage() {
 
     const [uploadLegacy] = useMutation(UPLOAD_LEGACY);
     const [deletePet] = useMutation(DELETE_PET);
+    const [updatePet] = useMutation(UPDATE_PET);
 
     const { data: meData } = useQuery(WHO_AM_I);
     const me = meData?.whoAmI;
@@ -130,27 +153,32 @@ export default function PetDetailsPage() {
         if (!token) router.push("/auth/login");
     }, [router]);
 
-    const handleLegacyUpload = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleLegacyUpload = async (modalData: any) => {
         try {
             await uploadLegacy({
                 variables: {
                     input: {
                         petId: id,
-                        vaccineMasterId: legacyVaccineId,
-                        dateAdministered: new Date(legacyDate).toISOString(),
-                        nextDueDate: legacyNextDate ? new Date(legacyNextDate).toISOString() : undefined,
-                        stickerImage: legacyImage
+                        vaccineMasterId: modalData.vaccineId,
+                        dateAdministered: new Date(modalData.dateAdministered).toISOString(),
+                        nextDueDate: modalData.nextDueDate ? new Date(modalData.nextDueDate).toISOString() : undefined,
+                        stickerImage: modalData.stickerImage,
+                        lotNumber: modalData.lotNumber
                     }
                 }
             });
-            alert("Legacy record uploaded!");
-            setShowLegacyForm(false);
+            alert("Vaccine record added successfully!");
+            // No need to close modal here as it's handled by prop usually,
+            // but we call refetch
             refetch();
         } catch (e: any) {
+            console.error(e);
             alert("Error uploading: " + e.message);
         }
     };
+
+    // Helper for Countdown Badge
+
 
     if (loading) return <div className="p-8 text-center bg-[#FFF9F4] min-h-screen">Loading...</div>;
     if (error) return <div className="p-8 text-center text-red-500 bg-[#FFF9F4] min-h-screen">Error: {error.message}</div>;
@@ -169,20 +197,32 @@ export default function PetDetailsPage() {
         }
     };
 
+    const handleToggleSos = async () => {
+        try {
+            await updatePet({
+                variables: {
+                    input: {
+                        id,
+                        isLost: !pet.isLost
+                    }
+                }
+            });
+            setShowSosModal(false);
+            refetch();
+        } catch (e: any) {
+            alert("Error updating SOS status: " + e.message);
+        }
+    };
+
     // Derived State for Filtering
     const uniqueTypes = Array.from(new Set(pet.vaccinations?.map((v: any) => v.vaccine.type).filter(Boolean))) as string[];
 
     const filteredRecords = pet.vaccinations?.filter((record: any) => {
         if (filterType === "ALL") return true;
         return record.vaccine.type === filterType;
-    });
+    }).sort((a: any, b: any) => new Date(b.dateAdministered).getTime() - new Date(a.dateAdministered).getTime());
 
-    // Derived Logic for Legacy Upload Form (2-Step Selection)
-    const legacyAvailableVaccines = vaccineData?.vaccines?.filter((v: any) => v.species?.toUpperCase() === pet.species?.toUpperCase()) || [];
-    const uniqueLegacyTypes = Array.from(new Set(legacyAvailableVaccines.map((v: any) => v.type)));
-    const legacyVaccinesByType = legacyVaccineType
-        ? legacyAvailableVaccines.filter((v: any) => v.type === legacyVaccineType)
-        : [];
+
 
     return (
         <div className={`min-h-screen bg-[#FFF9F4] ${nunito.className}`}>
@@ -200,7 +240,7 @@ export default function PetDetailsPage() {
                         onClick={() => setShowQR(!showQR)}
                         className="bg-[#8AD6C6] text-white border-none py-2 px-4 rounded-[20px] text-sm font-bold flex items-center gap-1 shadow-[0_4px_10px_rgba(138,214,198,0.4)] hover:bg-[#76BDB0] transition-colors"
                     >
-                        <i className="fas fa-qrcode"></i> {showQR ? "Hide" : "Show QR"}
+                        <i className="fas fa-qrcode"></i> {showQR ? "Hide" : "Pet Card QR"}
                     </button>
                 </header>
 
@@ -233,9 +273,17 @@ export default function PetDetailsPage() {
                                     {!isCollapsed && (
                                         <div className="flex flex-col gap-2 mt-2 w-full px-2">
                                             {isOwner && (
-                                                <Link href={`/owner/pet/${pet.id}/edit`} className="text-white/80 hover:text-white text-xs bg-white/20 px-3 py-1 rounded-full transition-colors whitespace-nowrap w-full text-center">
-                                                    <i className="fas fa-edit mr-1"></i> Edit
-                                                </Link>
+                                                <div className="flex flex-col gap-2 w-full">
+                                                    <Link href={`/owner/pet/${pet.id}/edit`} className="text-white/80 hover:text-white text-xs bg-white/20 px-3 py-1 rounded-full transition-colors whitespace-nowrap w-full text-center">
+                                                        <i className="fas fa-edit mr-1"></i> Edit
+                                                    </Link>
+                                                    <button
+                                                        onClick={() => setShowSosModal(true)}
+                                                        className={`text-white text-xs px-3 py-1 rounded-full transition-colors whitespace-nowrap w-full text-center border-none cursor-pointer ${pet.isLost ? 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-white/20 hover:bg-white/30'}`}
+                                                    >
+                                                        <i className={`fas fa-exclamation-triangle mr-1 ${pet.isLost ? 'animate-pulse' : ''}`}></i> {pet.isLost ? 'SOS ACTIVE' : 'SOS'}
+                                                    </button>
+                                                </div>
                                             )}
                                         </div>
                                     )}
@@ -272,10 +320,10 @@ export default function PetDetailsPage() {
                         {/* Desktop Only Upload Button (Hidden on Mobile) */}
                         <div className="hidden md:block mt-6">
                             <button
-                                onClick={() => setShowLegacyForm(true)}
+                                onClick={() => setShowActionSheet(true)}
                                 className="w-full bg-[#8AD6C6] text-white border-none p-4 rounded-[20px] text-base font-bold flex justify-center items-center gap-2 shadow-[0_8px_20px_rgba(138,214,198,0.4)] hover:bg-[#76BDB0] transition-colors"
                             >
-                                <i className="fas fa-plus"></i> Upload Past Record
+                                <i className="fas fa-plus"></i> Add Vaccine Record
                             </button>
                         </div>
                     </section>
@@ -303,7 +351,7 @@ export default function PetDetailsPage() {
                                         >
                                             All Types
                                         </button>
-                                        {uniqueTypes.map(type => (
+                                        {uniqueTypes.map((type: string) => (
                                             <button
                                                 key={type}
                                                 onClick={() => { setFilterType(type); setShowFilterMenu(false); }}
@@ -319,42 +367,51 @@ export default function PetDetailsPage() {
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                             {filteredRecords && filteredRecords.length > 0 ? (
-                                filteredRecords.map((record: any) => (
-                                    <div
-                                        key={record.id}
-                                        onClick={() => setSelectedVaccineRecord(record)}
-                                        className="bg-white rounded-[20px] p-4 shadow-[0_4px_15px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow cursor-pointer relative"
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <div className="text-base font-bold text-[#4A5568] mb-1">{record.vaccine.name}</div>
-                                                <div className="text-[13px] text-[#999]">{new Date(record.dateAdministered).toLocaleDateString()}</div>
-                                            </div>
-                                            {record.isVerified ? (
-                                                <div className="flex items-center gap-1 text-[#8AD6C6] text-xs font-bold">
-                                                    <i className="fas fa-check-circle"></i> Verified
+                                filteredRecords.map((record: any) => {
+                                    const daysLeft = getDaysLeft(record.nextDueDate);
+                                    return (
+                                        <div
+                                            key={record.id}
+                                            onClick={() => setSelectedVaccineRecord(record)}
+                                            className="bg-white rounded-[20px] p-4 shadow-[0_4px_15px_rgba(0,0,0,0.03)] hover:shadow-md transition-shadow cursor-pointer relative"
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <div>
+
+                                                    <div className="text-base font-bold text-[#4A5568]">{record.vaccine.name} <span className="text-sm font-normal text-gray-400">({record.vaccine.brand})</span></div>
+                                                    {record.vaccine.typeTH && <div className="text-xs text-gray-400 mb-1">{record.vaccine.typeTH}</div>}
+                                                    <div className="text-[13px] text-[#999] mt-1 flex items-center gap-2">
+                                                        <span>Next Due: <span className="font-bold text-[#F6A6A6]">{record.nextDueDate ? new Date(record.nextDueDate).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' }) : "-"}</span></span>
+                                                        {daysLeft && (
+                                                            <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 ${daysLeft.color}`}>
+                                                                <i className="fas fa-clock"></i> {daysLeft.days} d
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1 text-[#F6AD55] text-xs font-bold">
-                                                    <i className="fas fa-clock"></i> Pending
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="flex justify-between items-center mt-3">
-                                            <div className="flex gap-2">
-                                                {record.vaccine.type && (
-                                                    <span className="px-3 py-1 rounded-[12px] text-[11px] font-bold bg-[#F6A6A6] text-white">
-                                                        {record.vaccine.type}
-                                                    </span>
+                                                {record.isVerified ? (
+                                                    <div className="flex items-center gap-1 text-[#8AD6C6] text-xs font-bold">
+                                                        <i className="fas fa-check-circle"></i> Verified
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex items-center gap-1 text-[#F6AD55] text-xs font-bold">
+                                                        <i className="fas fa-clock"></i> Owner Upload
+                                                    </div>
                                                 )}
-                                                <span className="px-3 py-1 rounded-[12px] text-[11px] font-bold bg-[#E2E8F0] text-[#777]">
-                                                    {record.vaccine.brand || "Vaccine"}
-                                                </span>
                                             </div>
-                                            <i className="fas fa-chevron-right text-[#CCC]"></i>
+                                            <div className="flex justify-between items-center mt-3">
+                                                <div className="flex gap-2">
+                                                    {record.vaccine.type && (
+                                                        <span className="px-3 py-1 rounded-[12px] text-[10px] font-bold bg-gray-300 text-white">
+                                                            {record.vaccine.type}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <i className="fas fa-chevron-right text-[#CCC]"></i>
+                                            </div>
                                         </div>
-                                    </div>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <div className="text-center text-gray-400 py-10 col-span-full">
                                     <i className="fas fa-search text-3xl mb-3 opacity-50"></i>
@@ -368,15 +425,61 @@ export default function PetDetailsPage() {
                 {/* Footer Button (Mobile Only) */}
                 <div className="fixed bottom-5 left-0 w-full flex justify-center px-5 pointer-events-none mb-4 md:hidden">
                     <button
-                        onClick={() => setShowLegacyForm(true)}
+                        onClick={() => setShowActionSheet(true)}
                         className="pointer-events-auto w-full max-w-[440px] bg-[#8AD6C6] text-white border-none p-4 rounded-[20px] text-base font-bold flex justify-center items-center gap-2 shadow-[0_8px_20px_rgba(138,214,198,0.4)]"
                     >
-                        <i className="fas fa-plus"></i> Upload Past Record
+                        <i className="fas fa-plus"></i> Add Vaccine Record
                     </button>
                 </div>
 
                 {/* Modals (Legacy Form & Details) */}
-                {/* QR Code Modal */}
+                {/* Action Sheet */}
+                {showActionSheet && (
+                    <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowActionSheet(false)}>
+                        <div className="bg-white w-full max-w-lg rounded-t-[24px] md:rounded-[24px] p-6 animate-slide-up md:animate-scale-up space-y-4 pb-10 md:pb-6" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-between items-center mb-2">
+                                <h3 className="text-lg font-bold text-gray-700">Add Vaccine Record</h3>
+                                <button onClick={() => setShowActionSheet(false)} className="text-gray-400 font-bold p-2">✕</button>
+                            </div>
+
+                            <button
+                                onClick={() => {
+                                    setShowActionSheet(false);
+                                    setShowLegacyForm(true);
+                                }}
+                                className="w-full bg-[#8AD6C6] text-white font-bold p-4 rounded-[16px] flex items-center justify-center gap-3 shadow-sm hover:opacity-90 transition-opacity"
+                            >
+                                <i className="fas fa-camera text-xl"></i>
+                                Upload Past Record (Photo)
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setShowActionSheet(false);
+                                    setShowNewQrModal(true);
+                                }}
+                                className="w-full bg-white border-2 border-[#8AD6C6] text-[#8AD6C6] font-bold p-4 rounded-[16px] flex items-center justify-center gap-3 hover:bg-green-50 transition-colors"
+                            >
+                                <i className="fas fa-qrcode text-xl"></i>
+                                New Vaccine (Gen QR)
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Generate New Vaccine QR Modal */}
+                {showNewQrModal && (
+                    <VaccineQrModal
+                        petId={pet.id}
+                        onClose={() => setShowNewQrModal(false)}
+                        onSuccess={() => {
+                            // alert("Vaccine Confirmed by Vet!"); // Optional to show alert or just silent refresh
+                            refetch();
+                        }}
+                    />
+                )}
+
+                {/* QR Code Modal (Pet ID) */}
                 {
                     showQR && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setShowQR(false)}>
@@ -399,219 +502,162 @@ export default function PetDetailsPage() {
                                 <div className="bg-white p-2 rounded-xl mb-2">
                                     <QRCode value={pet.id} size={250} />
                                 </div>
-                                <p className="mt-1 text-xs text-gray-400 font-mono bg-gray-50 px-3 py-1 rounded-full">{pet.id}</p>
-                                <p className="text-xs text-gray-400 mt-2">Scan to access health records</p>
+
+                                <div className="grid grid-cols-2 gap-3 w-full">
+                                    <button
+                                        onClick={() => {
+                                            window.open(`/public/pet/${pet.id}`, '_blank');
+                                        }}
+                                        className="bg-white border-2 border-[#8AD6C6] text-[#8AD6C6] py-3 rounded-xl font-bold hover:bg-[#E6FFFA] transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fas fa-external-link-alt"></i> View Card
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            setShowQR(false);
+                                            setShowEditProfile(true);
+                                        }}
+                                        className="bg-[#8AD6C6] text-white py-3 rounded-xl font-bold hover:bg-[#76BDB0] transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <i className="fas fa-edit"></i> Edit Card
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )
                 }
 
-                {/* Legacy Upload Form Modal */}
+                {/* Edit Public Profile Modal */}
+                {showEditProfile && (
+                    <EditPublicProfileModal
+                        pet={pet}
+                        onClose={() => setShowEditProfile(false)}
+                        onSuccess={() => {
+                            refetch();
+                        }}
+                    />
+                )}
+
+                {/* New Smart Add Vaccine Modal */}
                 {
                     showLegacyForm && (
-                        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-4">
-                            <div className="bg-white w-full max-w-md rounded-t-[24px] sm:rounded-[24px] p-6 animate-slide-up">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-lg font-bold text-[#4A5568]">Upload Past Record</h3>
-                                    <button onClick={() => setShowLegacyForm(false)} className="text-gray-400 font-bold p-2">✕</button>
-                                </div>
-                                <form onSubmit={handleLegacyUpload} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Type</label>
-                                            <select
-                                                required
-                                                className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
-                                                value={legacyVaccineType}
-                                                onChange={(e) => {
-                                                    setLegacyVaccineType(e.target.value);
-                                                    setLegacyVaccineId("");
-                                                    setLegacyNextDate("");
-                                                }}
-                                            >
-                                                <option value="">Select Type</option>
-                                                {uniqueLegacyTypes.map((type: any) => (
-                                                    <option key={type} value={type}>{type}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Vaccine Name</label>
-                                            <select
-                                                required
-                                                disabled={!legacyVaccineType}
-                                                className={`w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900 ${!legacyVaccineType ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                value={legacyVaccineId}
-                                                onChange={(e) => {
-                                                    const newVaccineId = e.target.value;
-                                                    setLegacyVaccineId(newVaccineId);
-
-                                                    // Auto Calculation logic
-                                                    if (newVaccineId && legacyDate && pet.birthDate) {
-                                                        const vaccine = vaccineData?.vaccines?.find((v: any) => v.id === newVaccineId);
-                                                        if (vaccine) {
-                                                            const birth = new Date(pet.birthDate);
-                                                            const adminDate = new Date(legacyDate);
-                                                            const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
-
-                                                            const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, legacyDate, ageInWeeks);
-                                                            setLegacyNextDate(nextDate);
-                                                        }
-                                                    }
-                                                }}
-                                            >
-                                                <option value="">Select Vaccine</option>
-                                                {legacyVaccinesByType.map((v: any) => (
-                                                    <option key={v.id} value={v.id}>{v.name} ({v.brand})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Date of Vaccination</label>
-                                        <input
-                                            type="date"
-                                            required
-                                            max={new Date().toISOString().split("T")[0]}
-                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
-                                            value={legacyDate}
-                                            onChange={(e) => {
-                                                const newDate = e.target.value;
-                                                setLegacyDate(newDate);
-
-                                                // Auto Calculation logic
-                                                if (legacyVaccineId && newDate && pet.birthDate) {
-                                                    const vaccine = vaccineData?.vaccines?.find((v: any) => v.id === legacyVaccineId);
-                                                    if (vaccine) {
-                                                        const birth = new Date(pet.birthDate);
-                                                        const adminDate = new Date(newDate);
-                                                        const ageInWeeks = Math.floor((adminDate.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7));
-
-                                                        const nextDate = calculateNextVaccineDate(pet.species, vaccine.type, newDate, ageInWeeks);
-                                                        setLegacyNextDate(nextDate);
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Next Vaccination (Optional)</label>
-                                        <input
-                                            type="date"
-                                            min={legacyDate}
-                                            className="w-full rounded-[12px] border-gray-200 p-3 bg-gray-50 focus:ring-2 focus:ring-[#8AD6C6] outline-none text-gray-900"
-                                            value={legacyNextDate}
-                                            onChange={(e) => setLegacyNextDate(e.target.value)}
-                                        />
-                                        <p className="text-xs text-gray-400 mt-1">Auto-calculated based on vaccine guidelines. You can adjust if needed.</p>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1">Photo Evidence / Sticker</label>
-                                        <label className="block w-full border-2 border-dashed border-gray-300 rounded-[12px] p-6 text-center cursor-pointer hover:border-[#8AD6C6] transition-colors relative">
-                                            <input
-                                                type="file"
-                                                accept="image/*"
-                                                className="hidden"
-                                                onChange={async (e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (!file) return;
-                                                    const formData = new FormData();
-                                                    formData.append("file", file);
-                                                    try {
-                                                        // Quick upload logic inline for simplicity/speed
-                                                        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/uploads`, {
-                                                            method: "POST",
-                                                            body: formData,
-                                                        });
-                                                        const data = await res.json();
-                                                        setLegacyImage(data.url);
-                                                    } catch (err) { alert("Upload failed"); }
-                                                }}
-                                            />
-                                            {legacyImage ? (
-                                                <img src={legacyImage} alt="Preview" className="h-32 mx-auto object-contain" />
-                                            ) : (
-                                                <div className="text-gray-400">
-                                                    <i className="fas fa-camera text-2xl mb-2"></i>
-                                                    <p className="text-sm">Tap to upload image</p>
-                                                </div>
-                                            )}
-                                        </label>
-                                    </div>
-                                    <button type="submit" className="w-full bg-[#8AD6C6] text-white font-bold p-4 rounded-[16px] mt-4 shadow-lg">
-                                        Submit Record
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
+                        <AddVaccineModal
+                            onClose={() => setShowLegacyForm(false)}
+                            onUpload={handleLegacyUpload}
+                            pet={pet}
+                            vaccineOptions={vaccineData?.vaccines || []}
+                        />
                     )
                 }
 
                 {/* Details Modal */}
-                {
-                    selectedVaccineRecord && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setSelectedVaccineRecord(null)}>
-                            <div className="bg-white w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl animate-pop-in" onClick={e => e.stopPropagation()}>
-                                <div className="bg-[#8AD6C6] p-4 text-white flex justify-between items-center">
-                                    <span className="font-bold text-lg">Vaccine Details</span>
-                                    <button onClick={() => setSelectedVaccineRecord(null)} className="text-white/80 hover:text-white">✕</button>
-                                </div>
-                                <div className="p-6">
-                                    <h3 className="text-xl font-bold text-[#4A5568] mb-1">{selectedVaccineRecord.vaccine.name}</h3>
-                                    <div className="flex gap-2 mb-4">
-                                        <span className="px-2 py-1 bg-gray-100 rounded text-xs text-gray-500">{selectedVaccineRecord.vaccine.brand}</span>
-                                        <span className="px-2 py-1 bg-gray-100 rounded text-xs text-gray-500">{selectedVaccineRecord.vaccine.type}</span>
+                {/* Vaccine Details Modal */}
+                {selectedVaccineRecord && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setSelectedVaccineRecord(null)}>
+                        <div className="bg-white w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl animate-pop-in" onClick={e => e.stopPropagation()}>
+                            <div className="bg-[#8AD6C6] p-4 text-white flex justify-between items-center">
+                                <span className="font-bold text-lg">Vaccine Details</span>
+                                <button onClick={() => setSelectedVaccineRecord(null)} className="text-white/80 hover:text-white">✕</button>
+                            </div>
+                            <div className="p-6 relative overflow-hidden">
+                                {selectedVaccineRecord.isVerified && (
+                                    <div className="absolute bottom-0 right-0 opacity-15 pointer-events-none z-0 -rotate-[25deg]">
+                                        <img src="/logo.png" className="w-45 h-45" alt="Verified Watermark" />
+                                    </div>
+                                )}
+                                <div className="relative z-10">
+                                    <h3 className="text-xl font-bold text-[#4A5568] mb-1">{selectedVaccineRecord.vaccine.name} ({selectedVaccineRecord.vaccine.brand})</h3>
+                                    <div className="flex justify-between items-center mb-4">
+                                        {selectedVaccineRecord.vaccine.typeTH ?
+                                            <p className="text-gray-400 text-sm">{selectedVaccineRecord.vaccine.typeTH}</p> : <span></span>
+                                        }
+                                        <span className="px-3 py-1 rounded-[12px] text-[10px] font-bold bg-gray-300 text-white">{selectedVaccineRecord.vaccine.type}</span>
+                                    </div>
+                                    <hr className="border-gray-100 mb-4" />
+
+                                    <div className="mt-[20px] mb-6">
+                                        {selectedVaccineRecord.stickerImage && (
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-400 mb-2 uppercase">Proof / Sticker</p>
+                                                <img src={selectedVaccineRecord.stickerImage} className="w-full rounded-lg border object-cover max-h-48" alt="Sticker" />
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div className="space-y-3 text-sm text-gray-600">
-                                        <div className="flex justify-between border-b border-gray-100 pb-2">
-                                            <span>Date</span>
-                                            <span className="font-bold">{new Date(selectedVaccineRecord.dateAdministered).toLocaleDateString()}</span>
+                                        {selectedVaccineRecord.lotNumber && (<div className="flex justify-between pb-2 border-b border-gray-50">
+                                            <span>Lot Number</span>
+                                            <span className="font-bold text-gray-800">{selectedVaccineRecord.lotNumber}</span>
+                                        </div>)}
+                                        <div className="flex justify-between pb-2">
+                                            <span>Next Due Date</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-bold text-[#F6A6A6]">
+                                                    {selectedVaccineRecord.nextDueDate ? new Date(selectedVaccineRecord.nextDueDate).toLocaleDateString("en-GB", {
+                                                        day: 'numeric', month: 'short', year: 'numeric'
+                                                    }) : "-"}
+                                                </span>
+                                                {getDaysLeft(selectedVaccineRecord.nextDueDate) && (
+                                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1 ${getDaysLeft(selectedVaccineRecord.nextDueDate)?.color}`}>
+                                                        <i className="fas fa-clock"></i> {getDaysLeft(selectedVaccineRecord.nextDueDate)?.days} d
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-                                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                                        <div className="flex justify-between pb-2">
+                                            <span>Date Administered</span>
+                                            <span className="font-bold">{new Date(selectedVaccineRecord.dateAdministered).toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                                        </div>
+                                        <div className="flex justify-between pb-2">
                                             <span>Vet</span>
                                             <span className="font-bold">{selectedVaccineRecord.vet?.user?.fullName || "Owner Upload"}</span>
                                         </div>
-                                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                                        <div className="flex justify-between pb-2">
                                             <span>Clinic</span>
-                                            <span className="font-bold">{selectedVaccineRecord.vet?.clinic?.name || selectedVaccineRecord.clinic?.name || "-"}</span>
+                                            <span className="font-bold">{selectedVaccineRecord.clinic?.name || selectedVaccineRecord.vet?.clinic?.name || "-"}</span>
                                         </div>
                                     </div>
 
-                                    {/* Veterinarian Information Section */}
-                                    {selectedVaccineRecord.vet && (
-                                        <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Veterinarian Information</h3>
-                                            <div className="space-y-3">
-                                                <div>
-                                                    <label className="block text-xs text-gray-400 mb-1">Veterinarian Name</label>
-                                                    <div className="text-sm font-bold text-gray-700">{selectedVaccineRecord.vet.user.fullName}</div>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
-                                                    <div>
-                                                        <label className="block text-xs text-gray-400 mb-1">License No.</label>
-                                                        <div className="text-sm font-bold text-gray-700">{selectedVaccineRecord.vet.licenseNumber}</div>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-xs text-gray-400 mb-1">Clinic</label>
-                                                        <div className="text-sm font-bold text-gray-700">{selectedVaccineRecord.vet.clinic?.name || "-"}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
 
-                                    {selectedVaccineRecord.stickerImage && (
-                                        <div className="mt-4">
-                                            <p className="text-xs font-bold text-gray-400 mb-2 uppercase">Proof / Sticker</p>
-                                            <img src={selectedVaccineRecord.stickerImage} className="w-full rounded-lg border" />
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
-                    )
-                }
+                    </div>
+                )}
+
+                {/* SOS Confirmation Modal */}
+                {showSosModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5 backdrop-blur-sm" onClick={() => setShowSosModal(false)}>
+                        <div className="bg-white w-full max-w-sm rounded-[24px] overflow-hidden shadow-2xl animate-pop-in" onClick={e => e.stopPropagation()}>
+                            <div className={`${pet.isLost ? 'bg-green-500' : 'bg-red-500'} p-4 text-white flex justify-between items-center`}>
+                                <span className="font-bold text-lg">{pet.isLost ? 'เย้! เจอน้อง ' + pet.name + ' แล้วใช่ไหม? 🎉' : 'น้อง ' + pet.name + ' หายตัวไปใช่ไหม?'}</span>
+                                <button onClick={() => setShowSosModal(false)} className="text-white/80 hover:text-white bg-transparent border-none text-xl p-0">✕</button>
+                            </div>
+                            <div className="p-6">
+                                <p className="text-gray-600 mb-6 leading-relaxed">
+                                    {pet.isLost
+                                        ? `ดีใจด้วยมากๆ เลย! ระบบจะเปลี่ยนสถานะน้องกลับเป็น "ปลอดภัย" และ ซ่อนเบอร์โทรศัพท์ ของคุณกลับไปเป็นส่วนตัวเหมือนเดิม`
+                                        : `ไม่ต้องตกใจนะ! เมื่อกดยืนยัน ระบบจะเปลี่ยนสถานะเป็น "MISSING" และ แสดงเบอร์โทรศัพท์ของคุณ บนหน้า Profile เมื่อมีคนสแกน QR Code เพื่อให้คนที่เจอน้องติดต่อหาคุณได้ไวที่สุด`
+                                    }
+                                </p>
+                                <div className="space-y-3">
+                                    <button
+                                        onClick={handleToggleSos}
+                                        className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 border-none cursor-pointer ${pet.isLost ? 'bg-green-500 hover:bg-green-600' : 'bg-red-500 hover:bg-red-600'}`}
+                                    >
+                                        {pet.isLost ? 'ใช่ เจอตัวแล้ว!' : '📢 ใช่ ประกาศตามหา'}
+                                    </button>
+                                    <button
+                                        onClick={() => setShowSosModal(false)}
+                                        className="w-full py-4 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all border-none cursor-pointer"
+                                    >
+                                        ยกเลิก
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
             </div>
         </div>

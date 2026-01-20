@@ -12,6 +12,7 @@ type Clinic {
 
 input CreateLegacyRecordInput {
   dateAdministered: DateTime!
+  lotNumber: String
   nextDueDate: DateTime
   petId: String!
   stickerImage: String!
@@ -22,11 +23,17 @@ input CreatePetInput {
   birthDate: DateTime!
   breed: String
   chronicDiseases: String
+  favoriteThings: [String!]
   gender: Gender!
   image: String
+  isLost: Boolean = false
   isSterilized: Boolean = false
   microchipNo: String
   name: String!
+  powerStats: [PowerStatInput!]
+  secretHabits: [String!]
+  socialLinks: SocialLinksInput
+  socialTags: [String!]
   species: Species!
 }
 
@@ -40,6 +47,8 @@ input CreateVaccineRecordInput {
   dateAdministered: DateTime
   nextDueDate: DateTime
   petId: String!
+  qrToken: String
+  stickerImage: String
   vaccineMasterId: String!
 }
 
@@ -81,6 +90,7 @@ type Mutation {
   createUser(createUserInput: CreateUserInput!): User!
   createVaccineRecord(input: CreateVaccineRecordInput!): VaccineRecord!
   generateTransferCode(petId: String!): Pet!
+  generateVaccineQr(petId: String!): VaccineQrOutput!
   inviteMember(email: String!): Family!
   leaveFamily(familyId: String!): Family!
   login(loginInput: LoginInput!): LoginResponse!
@@ -96,31 +106,64 @@ type Pet {
   birthDate: DateTime!
   breed: String
   chronicDiseases: String
+  favoriteThings: [String]
   gender: Gender!
   id: ID!
   image: String
+  isLost: Boolean!
   isSterilized: Boolean!
   microchipNo: String
   name: String!
   owner: User
   ownerId: String!
   pastOwners: [User]
+  powerStats: [PowerStat]
+  secretHabits: [String]
+  socialLinks: SocialLinks
+  socialTags: [String]
   species: Species!
   transferCode: String
   transferExpiresAt: DateTime
   vaccinations: [VaccineRecord!]
 }
 
+type PowerStat {
+  label: String!
+  value: Float!
+}
+
+input PowerStatInput {
+  label: String!
+  value: Float!
+}
+
 type Query {
+  checkVaccineQrStatus(token: String!): String!
   findOne(id: String!): Pet!
   myAlumniPets: [Pet!]!
   myFamilies: [Family!]!
   myFamily: Family
   myPets(familyId: String): [Pet!]!
+  publicPet(id: String!): Pet!
   user(email: String!): User!
   users: [User!]!
   vaccines: [VaccineMaster!]!
+  verifyVaccineQr(token: String!): Pet!
   whoAmI: User
+}
+
+type SocialLinks {
+  facebook: String
+  instagram: String
+  tiktok: String
+  youtube: String
+}
+
+input SocialLinksInput {
+  facebook: String
+  instagram: String
+  tiktok: String
+  youtube: String
 }
 
 enum Species {
@@ -132,12 +175,18 @@ input UpdatePetInput {
   birthDate: DateTime
   breed: String
   chronicDiseases: String
+  favoriteThings: [String!]
   gender: Gender
   id: String!
   image: String
+  isLost: Boolean = false
   isSterilized: Boolean = false
   microchipNo: String
   name: String
+  powerStats: [PowerStatInput!]
+  secretHabits: [String!]
+  socialLinks: SocialLinksInput
+  socialTags: [String!]
   species: Species
 }
 
@@ -179,6 +228,12 @@ type VaccineMaster {
   name: String!
   species: Species!
   type: String!
+  typeTH: String
+}
+
+type VaccineQrOutput {
+  expiresAt: String!
+  token: String!
 }
 
 type VaccineRecord {
@@ -187,6 +242,7 @@ type VaccineRecord {
   dateAdministered: DateTime!
   id: ID!
   isVerified: Boolean!
+  lotNumber: String
   nextDueDate: DateTime
   pet: Pet!
   petId: String!

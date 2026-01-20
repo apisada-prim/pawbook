@@ -236,12 +236,12 @@ export default function OwnerDashboard() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Add New Pet Card (Only for Owner) */}
                         {isOwnerOfFamily && (
-                            <Link href="/owner/add-pet">
-                                <div className="h-full min-h-[220px] bg-white border-2 border-dashed border-[#8AD6C6] rounded-[24px] p-6 flex flex-col items-center justify-center gap-4 text-[#8AD6C6] hover:bg-[#F0FDF9] transition-all cursor-pointer group shadow-[0_4px_15px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(138,214,198,0.3)]">
-                                    <div className="w-16 h-16 bg-[#E6FFFA] rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                        <i className="fas fa-plus text-2xl"></i>
+                            <Link href="/owner/add-pet" className="col-span-1">
+                                <div className="h-auto md:h-full md:min-h-[220px] bg-white border-2 border-dashed border-[#8AD6C6] rounded-[20px] md:rounded-[24px] p-4 md:p-6 flex flex-row md:flex-col items-center justify-center gap-3 md:gap-4 text-[#8AD6C6] hover:bg-[#F0FDF9] transition-all cursor-pointer group shadow-[0_4px_15px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_20px_rgba(138,214,198,0.3)]">
+                                    <div className="w-10 h-10 md:w-16 md:h-16 bg-[#E6FFFA] rounded-full flex items-center justify-center md:mb-3 group-hover:scale-110 transition-transform">
+                                        <i className="fas fa-plus text-lg md:text-2xl"></i>
                                     </div>
-                                    <span className="font-bold text-lg">Add New Pet</span>
+                                    <span className="font-bold text-base md:text-lg">Add New Pet</span>
                                 </div>
                             </Link>
                         )}
@@ -301,7 +301,7 @@ export default function OwnerDashboard() {
                                     <button
                                         onClick={(e) => { e.preventDefault(); setTransferModal({ petId: pet.id, name: pet.name }); }}
                                         className="absolute top-4 right-4 z-20 bg-white/90 backdrop-blur text-gray-400 hover:text-[#8AD6C6] p-2 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
-                                        title="Pack Luggage (Transfer)"
+                                        title="Create Transfer Code"
                                     >
                                         <i className="fas fa-suitcase"></i>
                                     </button>
@@ -319,8 +319,8 @@ export default function OwnerDashboard() {
                     <div className="bg-white rounded-[24px] p-8 max-w-sm w-full shadow-xl">
                         {!transferModal.code ? (
                             <>
-                                <h3 className="text-xl font-bold text-[#4A5568] mb-2"><i className="fas fa-suitcase text-[#8AD6C6] mr-2"></i>Pack Luggage?</h3>
-                                <p className="text-gray-500 text-sm mb-6">You are about to transfer <b>{transferModal.name}</b>. This will generate a code for the new owner.</p>
+                                <h3 className="text-xl font-bold text-[#4A5568] mb-2"><i className="fas fa-suitcase text-[#8AD6C6] mr-2"></i>Create Transfer Code?</h3>
+                                <p className="text-gray-500 text-sm mb-6">This creates a moving pass for the new owner. <b>Don't worry, {transferModal.name} stays with you until the code is used.</b></p>
                                 <div className="flex gap-3">
                                     <button onClick={() => setTransferModal(null)} className="flex-1 py-3 rounded-xl font-bold text-gray-400 hover:bg-gray-50">Cancel</button>
                                     <button onClick={handleGenerateTransfer} className="flex-1 py-3 rounded-xl font-bold bg-[#8AD6C6] text-white hover:bg-[#76BDB0] shadow-lg shadow-[#8AD6C6]/20">Generate Code</button>

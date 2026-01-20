@@ -14,5 +14,11 @@ export class CreateVaccineRecordInput {
     @Field({ nullable: true })
     nextDueDate?: Date;
 
+    @Field({ nullable: true })
+    qrToken?: string;
+
+    @Field({ nullable: true })
+    stickerImage?: string;
+
     // Vet ID will be taken from context
 }
