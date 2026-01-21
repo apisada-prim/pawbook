@@ -1,4 +1,4 @@
-import { PrismaClient, Species, UserRole } from '@prisma/client';
+import { PrismaClient, Species, UserRole, Gender } from '@prisma/client';
 import * as dotenv from 'dotenv';
 import * as bcrypt from 'bcrypt';
 
@@ -109,6 +109,43 @@ async function main() {
         where: { id: user.id },
         data: { defaultFamilyId: family.id }
       });
+    }
+  }
+
+
+  // Seed Pets for Default Owner
+  const ownerUser = await prisma.user.findUnique({ where: { email: 'owner@pawbook.com' } });
+  if (ownerUser) {
+    console.log('Seeding pets for owner...');
+    const pets = [
+      {
+        name: 'Mamon',
+        species: Species.CAT,
+        gender: Gender.MALE,
+        birthDate: new Date(new Date().setFullYear(new Date().getFullYear() - 2)),
+        breed: 'Scottish Fold',
+        ownerId: ownerUser.id,
+      },
+      {
+        name: 'Mama',
+        species: Species.CAT,
+        gender: Gender.FEMALE,
+        birthDate: new Date(new Date().setFullYear(new Date().getFullYear() - 3)),
+        breed: 'Persian',
+        ownerId: ownerUser.id,
+      },
+    ];
+
+    for (const p of pets) {
+      const existing = await prisma.pet.findFirst({
+        where: { name: p.name, ownerId: p.ownerId }
+      });
+      if (!existing) {
+        await prisma.pet.create({ data: p });
+        console.log(`Created pet: ${p.name}`);
+      } else {
+        console.log(`Pet ${p.name} already exists.`);
+      }
     }
   }
 
