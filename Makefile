@@ -13,6 +13,20 @@ logf:
 	# No longer in docker, tail local logs if needed or remove
 	@echo "Frontend is running locally. Check terminal output."
 
+rebuild:
+	@echo "Stopping containers..."
+	docker-compose down
+	@echo "Cleaning backend dist..."
+	rm -rf backend/dist
+	@echo "Rebuilding and starting backend..."
+	docker-compose up -d --build backend
+	@echo "Waiting for services..."
+	@sleep 10
+	@echo "Pushing schema changes (Safe update)..."
+	docker-compose exec backend npx prisma db push
+	@echo "Starting frontend..."
+	@make start-fe
+
 # Update Database (run after editing schema.prisma)
 db-update:
 	docker-compose exec backend npx prisma migrate dev
