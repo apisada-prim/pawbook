@@ -23,7 +23,7 @@ rebuild:
 	@echo "Waiting for services..."
 	@sleep 10
 	@echo "Pushing schema changes (Safe update)..."
-	docker-compose exec backend npx prisma db push
+	docker-compose exec backend npx prisma migrate dev
 	@echo "Starting frontend..."
 	@make start-fe
 
